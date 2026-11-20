@@ -42,3 +42,6 @@ change (YYYY-MM-DD).
 | [0002](0002-scope-of-lockmerge-v1.md) | Scope of lockmerge v1: narrow (Cargo.lock, uv.lock, pnpm-lock.yaml) | Accepted |
 | [0003](0003-merge-driver-contract.md) | The merge driver contract: inputs, exit codes, markers on refusal, manifests from git objects | Accepted |
 | [0004](0004-server-side-merge-fallback.md) | Server-side merge fallback: detection with `lockmerge check` in CI | Accepted |
+| [0008](0008-safe-merge-and-refusal-rules-for-cargo-lock.md) | Safe-merge and refusal rules for Cargo.lock | Proposed |
+| [0009](0009-opt-in-cargo-validation-mode.md) | Opt-in cargo validation mode (not v1) | Proposed |
+| [0010](0010-how-the-driver-finds-the-commits.md) | How the driver finds the commits (amends ADR 0003) | Proposed |
