@@ -1,6 +1,6 @@
 # 0007. Fixture layout and extraction
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context

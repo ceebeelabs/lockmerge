@@ -44,4 +44,4 @@ change (YYYY-MM-DD).
 | [0004](0004-server-side-merge-fallback.md) | Server-side merge fallback: detection with `lockmerge check` in CI | Accepted |
 | [0005](0005-what-the-benchmark-counts-as-correct.md) | What the benchmark counts as correct | Accepted |
 | [0006](0006-false-merge-gate-in-ci.md) | False-merge gate in CI | Accepted |
-| [0007](0007-fixture-layout-and-extraction.md) | Fixture layout and extraction | Proposed |
+| [0007](0007-fixture-layout-and-extraction.md) | Fixture layout and extraction | Accepted |
