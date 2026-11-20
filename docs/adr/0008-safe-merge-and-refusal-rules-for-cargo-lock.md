@@ -1,6 +1,6 @@
 # 0008. Safe-merge and refusal rules for Cargo.lock
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
