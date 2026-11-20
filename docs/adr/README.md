@@ -42,3 +42,6 @@ change (YYYY-MM-DD).
 | [0002](0002-scope-of-lockmerge-v1.md) | Scope of lockmerge v1: narrow (Cargo.lock, uv.lock, pnpm-lock.yaml) | Accepted |
 | [0003](0003-merge-driver-contract.md) | The merge driver contract: inputs, exit codes, markers on refusal, manifests from git objects | Accepted |
 | [0004](0004-server-side-merge-fallback.md) | Server-side merge fallback: detection with `lockmerge check` in CI | Accepted |
+| [0005](0005-what-the-benchmark-counts-as-correct.md) | What the benchmark counts as correct | Accepted |
+| [0006](0006-false-merge-gate-in-ci.md) | False-merge gate in CI | Accepted |
+| [0007](0007-fixture-layout-and-extraction.md) | Fixture layout and extraction | Accepted |
