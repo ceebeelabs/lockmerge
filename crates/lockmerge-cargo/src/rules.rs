@@ -231,8 +231,9 @@ fn targets<'a>(p: &'a Package, name: &str) -> BTreeSet<&'a Id> {
 
 /// R14, through resolved edges: a package present in base and in a side whose
 /// dependency of one name now points at a different set of ids than before
-/// (including a contraction onto a target that already existed), or a registry
-/// or git package that lost every edge of a name. This catches moves that the inventory of
+/// (including a contraction onto a target that already existed), any package
+/// that lost every edge of a name, or a registry or git package that gained a
+/// name. This catches moves that the inventory of
 /// versions misses: the old version stays for another dependent, or the new
 /// one was already present.
 fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
@@ -254,12 +255,17 @@ fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
                 // manifests can tell from a plain addition or removal. A name
                 // wholly added or removed is not a move.
                 let moved = !b.is_empty() && !a.is_empty() && a != b;
-                // Feature coverage: a registry or git package that loses all
-                // edges of a name may have lost them to a feature that another
-                // dependent, added on the other side, still needs. Features are
-                // not in the lockfile, so this is refused.
-                let dropped = !id.is_path() && !b.is_empty() && a.is_empty();
-                if moved || dropped {
+                // Feature coverage. Features decide which optional edges a
+                // package has, and they reach it from dependents the other side
+                // may add. So a package loses every edge of a name (a path
+                // package may be an excluded dependency whose edges follow
+                // incoming feature requests), or an existing registry or git
+                // package gains a name (weak forwarding such as `leaf?/extra`
+                // adds edges the lockfiles of both sides do not show), only with
+                // manifest proof, which this crate cannot read yet.
+                let dropped = !b.is_empty() && a.is_empty();
+                let gained = !id.is_path() && b.is_empty() && !a.is_empty();
+                if moved || dropped || gained {
                     return Err(refusal(
                         codes::R14,
                         id.to_string(),

@@ -1,4 +1,4 @@
-source = "Hand-built: ours drops cli's dependency on foo 2.0.0 and the package; theirs adds the member tool depending on foo 1.0.0 from git. The merged set has one version of foo from two sources, an edge form this crate does not know."
+source = "Hand-built: ours drops the member cli and foo 2.0.0; theirs adds the member tool depending on foo 1.0.0 from git. The merged set has one version of foo from two sources, an edge form this crate does not know."
 path = "Cargo.lock"
 outcome = "refused"
 code = "cargo.UNWRITABLE"

@@ -20,12 +20,22 @@ dependencies = [
 [[package]]
 name = "cli"
 version = "0.1.0"
+dependencies = [
+ "itoa",
+ "old",
+]
 
 [[package]]
 name = "itoa"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "742e3ae615ae8d3f265bcfa75853ad268e6d70d028010a71041febf6b91cf0d9"
+
+[[package]]
+name = "old"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cc34e2cedb178abb0d560c9c027ab533bf71bf8e16f519e5a17e3bd98e73237"
 
 [[package]]
 name = "serde"

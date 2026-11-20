@@ -3,17 +3,11 @@
 version = 4
 
 [[package]]
-name = "anyhow"
-version = "1.0.80"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a714031247b532f4c4c7c42d006e80fdcdb217a5db4db8663898485a5975e518"
-
-[[package]]
 name = "app"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "itoa",
+ "old",
  "serde",
 ]
 

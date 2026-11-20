@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. wrapper is an excluded path dependency. Ours drops the unrelated member tool; theirs adds cli depending on wrapper."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "core.B1", "core.B2", "core.B1", "core.B4", "core.B1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

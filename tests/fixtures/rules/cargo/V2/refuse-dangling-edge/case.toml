@@ -1,4 +1,4 @@
-source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. The shape of cargo#2302: ours drops old and its only dependent edge; theirs adds a member that depends on old."
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. The shape of cargo#2302: ours drops the member cli and old; theirs adds a member that depends on old."
 path = "Cargo.lock"
 outcome = "refused"
 code = "cargo.R4"
