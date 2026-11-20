@@ -49,6 +49,6 @@ change (YYYY-MM-DD).
 | [0009](0009-opt-in-cargo-validation-mode.md) | Opt-in cargo validation mode (not v1) | Accepted |
 | [0010](0010-how-the-driver-finds-the-commits.md) | How the driver finds the commits (amends ADR 0003) | Accepted |
 | [0011](0011-crate-layout.md) | Crate layout | Accepted |
-| [0012](0012-format-trait-and-merge-result-type.md) | Format trait and the merge result type | Proposed |
+| [0012](0012-format-trait-and-merge-result-type.md) | Format trait and the merge result type | Accepted |
 | [0013](0013-refusal-and-reporting-model.md) | Refusal and reporting model | Proposed |
 | [0014](0014-parsers-are-read-only.md) | Parsers are read-only; `toml_edit` for TOML | Proposed |

@@ -1,6 +1,6 @@
 # 0012. Format trait and the merge result type
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
