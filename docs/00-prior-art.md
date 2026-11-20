@@ -150,9 +150,11 @@ refusals match the cases lockmerge should refuse.
 - R4. Either side, or the base, does not parse, or has an unknown lockfile
   version.
 - R5. A manifest (`Cargo.toml`, `pyproject.toml`, `package.json`) disagrees
-  with the merged lockfile, where the check is possible. The driver is only
-  handed the three lockfile versions (to confirm in doc 01), so if the
-  manifests are not visible to it, say so.
+  with the merged lockfile, where the check is possible. The driver is handed
+  only the three lockfile versions and never reads the working tree; it may
+  read the manifests of the base and both sides from git objects when git
+  provides the refs, and otherwise the check is left to `lockmerge check`
+  (see [01 section 6](01-git-driver-mechanics.md#6-file-in-file-out-or-repository-access)).
 - R6. The merged result has a dangling reference or a package with two
   different resolutions where the format allows only one.
 - R7. A prerelease vs release difference on the same package.

@@ -40,3 +40,5 @@ change (YYYY-MM-DD).
 | --- | --- | --- |
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions as ADRs in `docs/adr/` | Accepted |
 | [0002](0002-scope-of-lockmerge-v1.md) | Scope of lockmerge v1: narrow (Cargo.lock, uv.lock, pnpm-lock.yaml) | Accepted |
+| [0003](0003-merge-driver-contract.md) | The merge driver contract: inputs, exit codes, markers on refusal, manifests from git objects | Accepted |
+| [0004](0004-server-side-merge-fallback.md) | Server-side merge fallback: detection with `lockmerge check` in CI | Accepted |
