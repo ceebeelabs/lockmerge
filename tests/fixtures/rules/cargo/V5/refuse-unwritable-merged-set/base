@@ -7,6 +7,12 @@ name = "app"
 version = "0.1.0"
 dependencies = [
  "foo 1.0.0",
+]
+
+[[package]]
+name = "cli"
+version = "0.1.0"
+dependencies = [
  "foo 2.0.0",
 ]
 

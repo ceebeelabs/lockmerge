@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours points app only at the existing rand 0.8.5 while cli keeps 0.9.0; theirs removes the member tool."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

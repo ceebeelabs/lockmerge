@@ -16,4 +16,4 @@ version = "0.1.0"
 [[package]]
 name = "foo"
 version = "1.0.0"
-source = "git+https://example.com/foo.git?rev=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+source = "git+https://example.com/foo.git?branch=main#aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

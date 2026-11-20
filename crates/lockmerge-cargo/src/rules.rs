@@ -230,8 +230,9 @@ fn targets<'a>(p: &'a Package, name: &str) -> BTreeSet<&'a Id> {
 }
 
 /// R14, through resolved edges: a package present in base and in a side whose
-/// dependency of one name now points at other ids than before (the old target
-/// dropped, a new one taken). This catches moves that the inventory of
+/// dependency of one name now points at a different set of ids than before
+/// (including a contraction onto a target that already existed), or a registry
+/// or git package that lost every edge of a name. This catches moves that the inventory of
 /// versions misses: the old version stays for another dependent, or the new
 /// one was already present.
 fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
@@ -248,7 +249,17 @@ fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
                 .collect();
             for name in names {
                 let (b, a) = (targets(before, name), targets(after, name));
-                if a.difference(&b).next().is_some() && b.difference(&a).next().is_some() {
+                // A name present on both sides with a different target set may be
+                // a move that collapses onto an existing target, which only the
+                // manifests can tell from a plain addition or removal. A name
+                // wholly added or removed is not a move.
+                let moved = !b.is_empty() && !a.is_empty() && a != b;
+                // Feature coverage: a registry or git package that loses all
+                // edges of a name may have lost them to a feature that another
+                // dependent, added on the other side, still needs. Features are
+                // not in the lockfile, so this is refused.
+                let dropped = !id.is_path() && !b.is_empty() && a.is_empty();
+                if moved || dropped {
                     return Err(refusal(
                         codes::R14,
                         id.to_string(),
