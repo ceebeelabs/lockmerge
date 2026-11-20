@@ -1,6 +1,6 @@
 # 0003. The merge driver contract lockmerge implements
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
