@@ -4,7 +4,8 @@ A git merge driver that merges lockfiles by what they mean, not by their lines.
 
 > **Status: pre-alpha, research phase.** There is no code yet. The plan is in
 > [docs/charter.md](docs/charter.md), and the research documents land in
-> [docs/](docs/) as they are written.
+> [docs/](docs/) as they are written. Later work and known risks are
+> listed in [docs/04-backlog.md](docs/04-backlog.md).
 
 ## The problem
 
