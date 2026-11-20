@@ -1,0 +1,11 @@
+[package]
+name = "lockmerge-core"
+description = "Pure types, traits and the three-way engine of lockmerge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
