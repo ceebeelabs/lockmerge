@@ -295,8 +295,8 @@ meaningless; anything unproved stays significant.
 only the TOML and YAML parsers.
 
 - `Cargo.lock`: no two packages share (name, version, source); every
-  `dependencies` entry resolves to exactly one package; each root (no `source`)
-  or package is referenced by another; unknown top-level `version` fails.
+  `dependencies` entry resolves to exactly one package; each package is
+  either a root (no `source`) or referenced by another package; unknown top-level `version` fails.
 - `uv.lock`: no two packages share (name, version, source); each dependency
   resolves to a package in the file; unknown `version` fails.
 - `pnpm-lock.yaml`: every `snapshots` and importer dependency resolves; no
@@ -329,13 +329,15 @@ Definitions. Over the real corpus of one ecosystem, after skips:
 - `C_r` = reachable cases where plain git conflicts.
 - `C_x` = re-resolved cases where plain git conflicts.
 - `N` = all cases.
+- `S_r` = `resolved-correct` cases among `C_r`: reachable, plain git
+  conflicted, lockmerge resolved correctly. Git-clean cases are never in `S_r`.
 
 | Metric | Definition |
 | --- | --- |
-| **Reachable resolution rate (headline)** | `resolved-correct` / `C_r`, with a 95% Wilson lower bound beside it. |
-| Rate over all git conflicts | `resolved-correct` / (`C_r` + `C_x`). Reported beside the headline. |
+| **Reachable resolution rate (headline)** | `S_r` / `C_r`, with a 95% Wilson lower bound beside it. |
+| Rate over all git conflicts | `S_r` / (`C_r` + `C_x`). Reported beside the headline. |
 | Re-resolved report | Counts of `refused-correct`, `resolved-unverified`, and `resolved-wrong` among re-resolved cases. Reported separately; excluded from the headline denominator. |
-| Coverage | `resolved-correct` over reachable cases, with the `git-clean-wrong` count beside it. |
+| Coverage | `resolved-correct` over all reachable cases (git-clean included), with the `git-clean-wrong` count beside it. |
 | False-merge count | `resolved-wrong` over all N, including git-clean cases. **Must be 0.** |
 | Regression count | `git-clean-correct` cases that lockmerge refused. Target 0. |
 | Error count | `error` cases. **Must be 0.** |
@@ -370,9 +372,12 @@ about 65%.
 
 **The per-PR gate.** `lockmerge-bench check` exits non-zero if:
 
-1. any case is `resolved-wrong` or `error` (a waiver exempts a reachable case
-   only if it parses and carries a reason);
-2. the reachable resolution rate is below `tests/fixtures/<ecosystem>/baseline.toml`.
+1. any case is `resolved-wrong` or `error`. This is unconditional: a waiver
+   never exempts an `error` or a `resolved-wrong`. Waivers apply only during
+   classification, to a reachable result that passes L0 and L1 but differs at
+   L2, and make it `resolved-waived`; a waiver that does not parse or has no
+   reason is ignored;
+2. the reachable resolution rate (`S_r` / `C_r`) is below `tests/fixtures/<ecosystem>/baseline.toml`.
    The first baseline is **the measured rate when the benchmark first runs** (it
    may be low); the ratchet only goes up;
 3. `N` or the reachable count is below the baseline's minimums, a fixture fails
