@@ -1,0 +1,8 @@
+# Secret scanning. Lockfile fixtures are full of checksums and integrity
+# hashes that look like secrets but are public data.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Lockfile test fixtures"
+paths = ['''^tests/fixtures/''']

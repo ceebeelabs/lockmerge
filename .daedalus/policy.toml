@@ -1,0 +1,122 @@
+# Policy daedalus applies to this repository. Changes go through a pull
+# request like any other change.
+
+schema_version = 1
+
+[project]
+repo = "ceebeelabs/lockmerge"
+default_branch = "main"
+group_issue_labels = ["task-group"]
+
+[repository]
+# Required status checks; must match the CI job names. Empty until CI exists.
+required_checks = []
+
+[commits]
+# Who workers commit as; every pushed commit must be by this author.
+author_name = "ceebeecoder"
+author_email = "358970638+ceebeecoder@users.noreply.github.com"
+
+[workers]
+coder_cap = 2
+# New tasks wait while this many PRs are open.
+max_open_pulls = 3
+research_concurrency = 2
+engine = "claude"
+model = "claude-sonnet-5-5"
+max_turns_per_run = 150
+run_timeout_minutes = 45
+# The rust profile puts index.crates.io and static.crates.io on the worker
+# network, and nothing else. Workers never fetch benchmark source repos.
+profiles = ["rust"]
+# Resume by default; start a fresh session with a generated handoff above
+# this context size or after this many review rounds.
+fresh_session_above_tokens = 120_000
+fresh_session_after_rounds = 3
+
+# Share the machine's cores between workers building at once.
+[workers.env]
+CARGO_BUILD_JOBS = "{jobs}"
+
+[review]
+debounce_minutes = 3
+max_rounds = 5
+owners = ["ceebeecoder"]
+max_launches_per_head = 3
+stuck_after_minutes = 40
+carry_over_on_pure_merge = true
+delta_only = false
+wait_for_ci = true
+ci_wait_minutes = 20
+
+# Changes that could make lockmerge write a wrong lockfile, or that change how
+# it is built, installed or checked, go to the strong reviewer.
+[review.risky]
+paths = [
+    ".github/workflows/**",
+    "Cargo.toml",
+    "Cargo.lock",
+    "crates/lockmerge-core/**",
+    "crates/lockmerge-bench/**",
+    "crates/lockmerge-cli/src/install*",
+    ".daedalus/**",
+    ".gitattributes",
+    ".gitleaks.toml",
+]
+max_changed_lines = 300
+max_changed_files = 100
+
+[review.reviewers]
+risky = { engine = "codex", model = "gpt-6.1-sol", effort = "high" }
+default = { engine = "codex", model = "gpt-6-luna", effort = "high" }
+fallback = { engine = "claude", model = "claude-sonnet-5-5" }
+
+[budgets]
+per_run_tokens = 3_000_000
+per_task_tokens = 12_000_000
+per_day_tokens = 90_000_000
+per_research_tokens = 6_000_000
+
+[budgets.kinds]
+input = 1.0
+cache_write = 1.25
+cache_read = 0.1
+output = 5.0
+
+[budgets.weights]
+"claude-opus-5-5" = 1.0
+"claude-sonnet-5-5" = 0.6
+"claude-haiku-5-5" = 0.2
+"gpt-6-luna" = 0.4
+"gpt-6.1-sol" = 0.8
+
+[budgets.prices."gpt-6.1-sol"]
+input = 2.0
+cache_write = 2.0
+cache_read = 0.10
+output = 10.0
+
+[budgets.prices."gpt-6-luna"]
+input = 0.10
+cache_write = 0.10
+cache_read = 0.01
+output = 0.50
+
+[train]
+auto = [
+    { class = "dependabot", updates = ["patch", "minor"] },
+]
+
+[labels]
+triggers = []
+
+[ci]
+extra_infra_failure_patterns = [
+    "Upload progress stalled",
+    "fatal: repository 'https://github.com/ceebeelabs/lockmerge/' not found",
+]
+
+[follow_ups]
+# Each merge raises one inbox item listing what would be filed; the owner
+# accepts, revises or rejects it.
+triage = "owner"

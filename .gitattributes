@@ -1,0 +1,5 @@
+* text=auto eol=lf
+
+# Test fixtures are exact bytes: git must never convert their line endings
+# or treat them as text to normalize.
+tests/fixtures/** -text
