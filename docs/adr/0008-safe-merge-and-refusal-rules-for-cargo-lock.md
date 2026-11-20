@@ -47,8 +47,14 @@ decided in ADR 0010, which amends ADR 0003.
    its edge to the higher version there, and (c) the declarations of the crate
    in those path packages' merged manifests, including features and
    `default-features`, equal those of the higher side, since its edges cover
-   only the features it was resolved with. Otherwise refuse. Prereleases and
+   only the features it was resolved with; this covers every registry and git
+   dependency of every path package, not only the bumped crate, because
+   features reach it indirectly. Otherwise refuse. Prereleases and
    different compatibility classes are refused.
+   B1, any one-sided version change of a crate present in base is taken only
+   if every path package with an edge into it has a merged-manifest
+   requirement the new version satisfies; if manifests are unavailable and such
+   a package exists, refuse. This covers a manifest-only pin on the other side.
 5. M2, both sides changed the same path package's edges: combine only if the
    merged manifest is fully readable and its declared dependency names equal
    the merged edge names, each registry edge satisfies its declared

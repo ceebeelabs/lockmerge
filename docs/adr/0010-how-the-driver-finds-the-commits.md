@@ -59,7 +59,9 @@ command is not part of v1.
    missing on any side, the driver uses lockfile-only rules for the whole
    file. This is the text git itself produces for those manifests when its
    merge is clean, not a dependency-level merge of our own. The working tree
-   and the index are never read.
+   is never read, and the index is never read for content. This amends ADR
+   0003's "never reads the index" in one respect: the driver runs
+   `git diff --cached --quiet HEAD` only to prove that ours is `HEAD`.
 5. Git does not document these label formats as stable. Tests must run real
    `git merge`, `rebase`, `cherry-pick` and `revert` in a temporary
    repository, pinned to several git versions in CI (at least the oldest

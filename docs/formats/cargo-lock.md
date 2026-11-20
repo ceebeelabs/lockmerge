@@ -92,6 +92,18 @@ Per-id base rules (lockfile only):
 | Both changed the same id differently | refuse unless M1 or M2 applies |
 | Removed on one side, changed on the other | refuse unless M3 applies |
 
+**B1. Manifest agreement for version changes.** A one-sided change that moves a
+crate present in base to another version (a bump or downgrade, with the other
+side leaving it alone) is taken only if, for every path package with an edge into
+that crate, the merged manifest (4.5) declares a requirement the new version
+satisfies. If no path package has an edge into it, B1 holds trivially. If a
+path package has such an edge and manifests are unavailable: refuse (R14). The
+other side may have changed a manifest only, which the lockfile does not show.
+Pure additions and removals are not affected.
+Accept: ours bumps serde 1.0.100 to 1.0.101; theirs adds `anyhow` to another
+member; `app` still says `serde = "1"`. Refuse: same, but theirs pins `app` to
+`serde = "=1.0.100"` (manifest-only change): 1.0.101 fails the requirement.
+
 "Changed" uses the resolved comparison, so a changed edge target counts even
 when the edge text is identical (the bare `"serde"` case).
 
@@ -107,7 +119,7 @@ taken from side S_H; L is the other. Accept only if **all** hold:
 - b. Every non-path package in the merged set with an edge into K is present in S_H with the same id and checksum, with its K edge pointing at H there. This proves its own requirement admits H, because the same id and checksum means the same crate manifest. A registry or git package that exists only on the L side: refuse (its requirement is not in git and not provable).
 - c. The merged set keeps only H in K. Edges into L or H are written as edges to H. H's entry and its edges come from S_H, and every edge must resolve in the merged set (V2). If H's edges name something that is itself a both-sides-bumped crate, M1 applies to it too; any unresolved chain: refuse.
 - d. Checksum, source and version of H are copied unchanged from S_H.
-- e. Features. H's edges from S_H cover only the features S_H's graph was resolved with. For every path package with an edge into K, the declaration of K in the merged manifest (`features`, `default-features`, `optional`, `workspace = true` inheritance) and every `[features]` entry in the merged manifests that names K (`K/feat`, `K?/feat`, `dep:K`) must equal the same in the S_H side's manifest of that package. Any difference, or an S_H manifest that cannot be read: refuse. Features requested by registry or git dependents are covered by condition b (same id, same crate manifest, same edges).
+- e. Features. H's edges from S_H cover only the features S_H's graph was resolved with, and features reach K indirectly (an app enabling a feature of `rand` that forwards to `rand_core/getrandom`). So the check is not limited to dependents of K: for **every** path package in the merged set, the declarations of every registry and git dependency in the merged manifest (`features`, `default-features`, `optional`, `workspace = true` inheritance) and every `[features]` entry naming an external crate (`C/feat`, `C?/feat`, `dep:C`) must equal the same in the S_H side's manifest of that package. Any difference, or an S_H manifest that cannot be read: refuse. This proves S_H's lockfile was resolved with the merged feature set. Without manifests, M1 refuses whenever any path package exists (fallback, 4.6).
 
 The registry requirements of other crates are not in git, so M1 proves them by
 identity (condition b), not by reading them. The merged manifests are used only
@@ -119,7 +131,12 @@ exists in theirs with an edge to 1.0.102 and the member manifest says
 Neighbor refuse cases: ours enables `features = ["derive"]` on serde in the
 member manifest (adding `serde_derive` to ours) and theirs bumps to the higher
 1.0.102 without it: the merged manifest enables derive but S_H's graph has no
-`serde_derive` (condition e), so M1 refuses and M3 must not prune it; ours adds crate `y` depending on serde 1.0.101 and
+`serde_derive` (condition e), so M1 refuses and M3 must not prune it. The
+indirect case: `app` depends on rand 0.8.5 with `default-features = false`;
+ours enables rand's `getrandom` feature and bumps rand_core 0.6.2 to 0.6.3,
+theirs bumps rand_core to 0.6.4 without the feature: the merged manifest differs
+from S_H's in rand's features, so M1 refuses although `app` has no direct edge
+into rand_core. Ours adds crate `y` depending on serde 1.0.101 and
 theirs (higher) has no `y` (condition b); a member manifest says
 `serde = "<1.0.102"` (condition a); versions 1.0.101 and 2.0.0 (different class,
 so M1 does not apply and the base rules apply); either version is a prerelease.
@@ -188,7 +205,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R11. Prerelease versus release difference on one package; any non-semver version string.
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
-- R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule and apply the base rules.
+- R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
 Neighbors that **merge** (each needs its own test): both sides add different
 crates; both add the same entry byte-identically; one side bumps and the other
@@ -251,8 +268,8 @@ blobs of base, ours and theirs with `git cat-file` and runs `git merge-file -p`
 on the three. A clean result is the merged manifest. A conflict, or a manifest
 missing on any side, means no manifest rules for the whole lockfile (R14). This
 is exactly the text that git itself produces for those manifests when its merge
-is clean, so it is not a dependency-level merge of our own. The index is not
-read (stage 0 does not exist at driver time), and the working tree is never
+is clean, so it is not a dependency-level merge of our own. The index content is not
+read (stage 0 does not exist at driver time); the one use of the index is the comparison `git diff --cached --quiet HEAD` of "Proof of ours", and the working tree is never
 read: the result depends only on the three inputs and the git objects.
 
 **Finding manifests.** Take the directory of the lockfile (`%P`). Read its
@@ -275,7 +292,7 @@ Whenever the commits are not identified (4.5), or a manifest cannot be read,
 is missing on a side, or does not merge cleanly as text, run the base rules of
 4.2 only, for the whole file. M3 and the registry-dependents part of M1
 (conditions b to d, when no path package has an edge into K) still apply, since
-they need no manifest. M2 and the path-dependents part of M1 refuse (R14).
+they need no manifest. M2, the path-dependents part of M1 and B1 (for a crate with a path dependent) refuse (R14).
 
 ### 4.7 Accept and refuse tests (one pair per rule)
 
@@ -283,6 +300,7 @@ they need no manifest. M2 and the path-dependents part of M1 refuse (R14).
 | --- | --- | --- |
 | M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | derive enabled only on the lower side; extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
 | M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
+| B1 | one-sided serde bump; other side adds a crate to another member | other side pins `=1.0.100` in a manifest only |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 
 Manifest handling has its own tests (4.5): a manifest whose three-way text
