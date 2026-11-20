@@ -213,7 +213,12 @@ fn swap_disagreement(o: &dyn Oracle, run: &Run, swapped: &Run) -> Option<String>
                 return None;
             }
             match (o.normalize(a), o.normalize(b)) {
-                (Ok(x), Ok(y)) if x == y => None,
+                // Equality after normalization must not hide a result that
+                // fails L0 or L1: both must pass before they count as equal.
+                (Ok(x), Ok(y)) if x == y => [a, b]
+                    .iter()
+                    .any(|r| o.canonical(r).is_err() || o.valid(r).is_err())
+                    .then(|| "swap check: the results are equal only after normalization and one fails L0 or L1".to_string()),
                 _ => Some("swap check: the two orders give different results".to_string()),
             }
         }
@@ -407,6 +412,20 @@ mod tests {
             classify(&CargoOracle, &c, &good, &other).class,
             Class::Error
         );
+    }
+
+    #[test]
+    fn swap_equality_after_normalization_needs_both_results_canonical() {
+        let expected = lock(&["pa", "pb", "pc"]);
+        let c = view(&expected, Kind::Reachable);
+        let good = Run::Clean(expected.clone());
+        let mut sloppy = expected.clone();
+        sloppy.push(b'\n');
+        let bad = Run::Clean(sloppy);
+        for (a, b) in [(&good, &bad), (&bad, &good)] {
+            let v = classify(&CargoOracle, &c, a, b);
+            assert_eq!(v.class, Class::Error, "{}", v.detail);
+        }
     }
 
     #[test]

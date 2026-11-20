@@ -182,12 +182,30 @@ fn merge(
                 Err(e) => Merged::Error(e),
             }
         }
-        Some(1) => match git(dir, &["ls-files", "-u", "--", &case.meta.lockfile_path]) {
-            Ok(out) if !out.is_empty() => Merged::Conflict,
-            Ok(_) => Merged::Error(format!(
-                "git merge failed but left the lockfile merged: {}",
-                ran.stderr_text()
-            )),
+        // Exit 1 is a conflict somewhere in the tree. Only the lockfile's own
+        // index state says whether the lockfile was merged.
+        Some(1) => match git(dir, &["ls-files", "-s", "--", &case.meta.lockfile_path]) {
+            Ok(out) => {
+                let text = String::from_utf8_lossy(&out).into_owned();
+                let stages: Vec<&str> = text
+                    .lines()
+                    .filter_map(|l| l.split_once('\t')?.0.split(' ').nth(2))
+                    .collect();
+                if stages.is_empty() {
+                    Merged::Error(format!(
+                        "git merge failed and the lockfile is not in the index: {}",
+                        ran.stderr_text()
+                    ))
+                } else if stages.iter().all(|s| *s == "0") {
+                    let spec = format!(":0:{}", case.meta.lockfile_path);
+                    match git(dir, &["cat-file", "blob", &spec]) {
+                        Ok(bytes) => Merged::Clean(bytes),
+                        Err(e) => Merged::Error(e),
+                    }
+                } else {
+                    Merged::Conflict
+                }
+            }
             Err(e) => Merged::Error(e),
         },
         Some(c) => Merged::Error(format!("git merge exited {c}: {}", ran.stderr_text())),

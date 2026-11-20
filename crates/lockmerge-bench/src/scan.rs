@@ -127,7 +127,12 @@ pub fn ensure_clone(source: &Source, dir: &Path) -> Result<(), String> {
             std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         }
         let here = dir.parent().unwrap_or(Path::new("."));
-        let target = dir.to_string_lossy().into_owned();
+        // The subprocess runs in `here`, so pass only the final component.
+        let target = dir
+            .file_name()
+            .ok_or("the clone path has no final component")?
+            .to_string_lossy()
+            .into_owned();
         git_out(
             here,
             &[
@@ -348,6 +353,49 @@ pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn a_relative_clone_path_is_cloned_where_it_is_looked_for() {
+        let src = crate::util::TempDir::new("origin").unwrap();
+        let run = |d: &Path, a: &[&str]| {
+            let mut c = crate::util::git_isolated(d);
+            c.args(a);
+            assert!(crate::util::run(c, Duration::from_secs(60)).unwrap().ok());
+        };
+        run(src.path(), &["init", "-q", "-b", "main"]);
+        std::fs::write(src.path().join("f"), "x").unwrap();
+        run(src.path(), &["add", "f"]);
+        run(src.path(), &["commit", "-q", "-m", "c"]);
+        let mut c = crate::util::git_isolated(src.path());
+        c.args(["rev-parse", "HEAD"]);
+        let rev = String::from_utf8(crate::util::run(c, Duration::from_secs(60)).unwrap().stdout)
+            .unwrap()
+            .trim()
+            .to_string();
+        let source = Source {
+            name: "t".into(),
+            url: src.path().to_string_lossy().into_owned(),
+            ecosystem: "cargo".into(),
+            lockfiles: vec!["Cargo.lock".into()],
+            revision: rev,
+            max_cases: 1,
+            max_file_bytes: 1,
+            license: None,
+        };
+        // Relative to the process directory, as the default `bench-cache/`.
+        let cwd = std::env::current_dir().unwrap();
+        let tmp = crate::util::TempDir::new("cache").unwrap();
+        let mut rel = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            rel.push("..");
+        }
+        rel.push(tmp.path().strip_prefix("/").unwrap());
+        let dir = rel.join("sub").join("t.git");
+        ensure_clone(&source, &dir).unwrap();
+        assert!(tmp.path().join("sub/t.git/HEAD").is_file());
+        assert!(!tmp.path().join("sub/sub").exists());
+    }
 
     #[test]
     fn sources_parse_and_refuse_a_short_revision() {

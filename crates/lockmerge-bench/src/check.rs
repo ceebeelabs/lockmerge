@@ -80,6 +80,9 @@ fn driver_dir(opts: &CheckOpts) -> Result<PathBuf, String> {
             bin.display()
         ));
     }
+    // Absolute, so the replay's PATH entry does not depend on the directory
+    // of the temporary repository.
+    let bin = std::fs::canonicalize(&bin).map_err(|e| format!("{}: {e}", bin.display()))?;
     bin.parent()
         .map(Path::to_path_buf)
         .ok_or_else(|| "the driver binary has no directory".to_string())
@@ -319,5 +322,32 @@ fn run_case(
         exact,
         attribution,
         waived: case.meta.waiver.is_some(),
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use crate::util::TempDir;
+
+    #[test]
+    fn a_relative_driver_bin_becomes_an_absolute_directory() {
+        // The replay puts this directory on PATH inside a temporary
+        // repository, so a relative one would find another `lockmerge`.
+        let tmp = TempDir::new("rel").unwrap();
+        let bin = tmp.path().join("lockmerge");
+        std::fs::write(&bin, "").unwrap();
+        let cwd = std::env::current_dir().unwrap();
+        let mut rel = PathBuf::new();
+        for _ in cwd.components().skip(1) {
+            rel.push("..");
+        }
+        rel.push(bin.strip_prefix("/").unwrap());
+        assert!(rel.is_relative());
+        let mut opts = CheckOpts::new(PathBuf::from("unused"));
+        opts.driver_bin = Some(rel);
+        let dir = driver_dir(&opts).unwrap();
+        assert!(dir.is_absolute());
+        assert_eq!(dir, std::fs::canonicalize(tmp.path()).unwrap());
     }
 }

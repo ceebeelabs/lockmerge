@@ -350,13 +350,28 @@ fn render(lock: &Lock) -> Result<String, String> {
             idxs.push(resolve(d, &pkgs)?);
         }
         idxs.sort();
-        let mut deps = Vec::new();
-        for (n, i) in idxs.iter().enumerate() {
-            if n > 0 && idxs[n - 1] == *i {
+        for w in idxs.windows(2) {
+            if w[0] == w[1] {
                 return Err("a package lists one edge twice".into());
             }
-            deps.push(edge_text(&pkgs, *i)?);
         }
+        // Cargo orders the encoded ids (name, then version as a string, then
+        // source), independently of the order of package blocks.
+        type EdgeKey = (String, Option<String>, Option<String>);
+        let mut keyed: Vec<(EdgeKey, String)> = Vec::new();
+        for i in &idxs {
+            let text = edge_text(&pkgs, *i)?;
+            let q = &pkgs[*i];
+            let key = (
+                q.name.clone(),
+                text.contains(' ').then(|| q.version.clone()),
+                text.ends_with(')')
+                    .then(|| q.source.clone().unwrap_or_default()),
+            );
+            keyed.push((key, text));
+        }
+        keyed.sort();
+        let deps: Vec<String> = keyed.into_iter().map(|(_, t)| t).collect();
         blocks.push(block("[[package]]", p, &deps)?);
     }
     for p in sorted(&lock.patch_unused)? {
@@ -502,12 +517,23 @@ mod tests {
     }
 
     #[test]
-    fn l0_orders_versions_as_semver_not_text() {
-        let body = "[[package]]\nname = \"x\"\nversion = \"1.9.0\"\nsource = \"s\"\nchecksum = \"a\"\n\n[[package]]\nname = \"x\"\nversion = \"1.10.0\"\nsource = \"s\"\nchecksum = \"b\"\n\n[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"x 1.10.0\",\n \"x 1.9.0\",\n]\n";
-        // `app` sorts before `x`; its edges are in target order (1.9.0 first).
-        let reordered = "[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"x 1.9.0\",\n \"x 1.10.0\",\n]\n\n[[package]]\nname = \"x\"\nversion = \"1.9.0\"\nsource = \"s\"\nchecksum = \"a\"\n\n[[package]]\nname = \"x\"\nversion = \"1.10.0\"\nsource = \"s\"\nchecksum = \"b\"\n";
-        assert!(CargoOracle.canonical(&lock(4, body)).is_err());
-        CargoOracle.canonical(&lock(4, reordered)).unwrap();
+    fn l0_orders_edges_by_encoded_id_string() {
+        let blocks = "\n[[package]]\nname = \"x\"\nversion = \"1.9.0\"\nsource = \"s\"\nchecksum = \"a\"\n\n[[package]]\nname = \"x\"\nversion = \"1.10.0\"\nsource = \"s\"\nchecksum = \"b\"\n";
+        let app = |first: &str, second: &str| {
+            format!(
+                "[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"{first}\",\n \"{second}\",\n]\n{blocks}"
+            )
+        };
+        // Package blocks are in semver order (1.9.0 first), but the edges are
+        // ordered as encoded ids: "x 1.10.0" before "x 1.9.0".
+        CargoOracle
+            .canonical(&lock(4, &app("x 1.10.0", "x 1.9.0")))
+            .unwrap();
+        assert!(
+            CargoOracle
+                .canonical(&lock(4, &app("x 1.9.0", "x 1.10.0")))
+                .is_err()
+        );
     }
 
     #[test]

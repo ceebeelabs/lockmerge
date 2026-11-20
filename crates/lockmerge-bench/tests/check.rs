@@ -444,3 +444,38 @@ fn a_driver_that_disagrees_with_the_in_process_format_is_an_error() {
     assert_eq!(r.class.name(), "error");
     assert!(r.detail.contains("refused in process"), "{}", r.detail);
 }
+
+#[test]
+fn a_manifest_conflict_does_not_hide_a_merged_lockfile() {
+    // Both sides edit the same line of Cargo.toml (a git conflict, exit 1)
+    // while the lockfile merges. The lockfile result must still be read.
+    let fx = Fixtures::new(BASELINE);
+    let c = conflict_case();
+    let dir = fx.add("aaaaaaaaaaaa", "reachable", [&c[0], &c[1], &c[2], &c[3]]);
+    for side in ["ours", "theirs"] {
+        let m = dir.join(format!("manifests/{side}"));
+        fs::create_dir_all(&m).unwrap();
+        fs::write(
+            m.join("Cargo.toml"),
+            format!("[package]\nname = \"{side}\"\n"),
+        )
+        .unwrap();
+    }
+    // Re-hash the added manifests.
+    let mut toml = fs::read_to_string(dir.join("case.toml")).unwrap();
+    for side in ["ours", "theirs"] {
+        let rel = format!("manifests/{side}/Cargo.toml");
+        let bytes = fs::read(dir.join(&rel)).unwrap();
+        toml.push_str(&format!("\"{rel}\" = \"{}\"\n", sha256_hex(&bytes)));
+    }
+    fs::write(dir.join("case.toml"), toml).unwrap();
+    let (_d, bin) = writes(&c[3]);
+    let out = run(&fx, &bin, &[]);
+    assert!(
+        out.passed(),
+        "{:?} {:?}",
+        out.failures,
+        out.ecosystems[0].results
+    );
+    assert_eq!(out.ecosystems[0].metrics.s_r, 1);
+}
