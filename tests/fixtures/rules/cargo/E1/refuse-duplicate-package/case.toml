@@ -1,0 +1,4 @@
+source = "Hand-built: ours lists anyhow twice, which Cargo rejects."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R9"

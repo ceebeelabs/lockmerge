@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours adds anyhow to app; theirs drops the unused crate old."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "core.B3", "core.B2", "core.B2", "core.B1", "core.B4", "core.B1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours has an extra comment line; theirs drops old."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.CANON"

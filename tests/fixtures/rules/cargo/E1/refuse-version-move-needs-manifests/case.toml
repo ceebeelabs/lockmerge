@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours moves serde to 1.0.101; theirs drops old. Neighbor of the accept cases, which change no version."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

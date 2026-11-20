@@ -436,7 +436,7 @@ From `serialize_resolve` and the schema:
 - Then `version = N`, then a blank line (V1 and V2 emit no `version` line).
 - Each entry: `[[package]]`, fields in the order `name`, `version`, `source`, `checksum`, `dependencies`, then a blank line. `dependencies` is a multi-line array: one quoted string per line, one-space indent, each ending in a comma, closing `]`. Basic quotes.
 - Packages sorted by `PackageId` order: name, then version (semver), then source. The source-ordering rule is unverified. Our output rule: sort by (name, semver version); if two ids tie, refuse unless their relative order is the same in an input that has both.
-- Each package's `dependencies` is sorted.
+- Each package's `dependencies` is sorted by the fields of the edge text (name, then version as text, then source), not by semver: `rand 0.10.0` comes before `rand 0.8.5`, while the packages themselves are in semver order (checked against 460 real version 3 and 4 lockfiles packaged in crates.io releases; nine are kept in `tests/fixtures/roundtrip/cargo/`).
 - `[[patch.unused]]` entries, if any, follow, sorted.
 - Trailing blank lines are trimmed on V2 and later: the file ends with exactly one `\n`.
 - Cargo does not rewrite a file whose lines equal the output (`are_equal_lockfiles`).
