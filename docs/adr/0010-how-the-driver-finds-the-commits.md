@@ -1,6 +1,6 @@
 # 0010. How the driver finds the commits (amends ADR 0003)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
