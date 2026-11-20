@@ -107,6 +107,7 @@ taken from side S_H; L is the other. Accept only if **all** hold:
 - b. Every non-path package in the merged set with an edge into K is present in S_H with the same id and checksum, with its K edge pointing at H there. This proves its own requirement admits H, because the same id and checksum means the same crate manifest. A registry or git package that exists only on the L side: refuse (its requirement is not in git and not provable).
 - c. The merged set keeps only H in K. Edges into L or H are written as edges to H. H's entry and its edges come from S_H, and every edge must resolve in the merged set (V2). If H's edges name something that is itself a both-sides-bumped crate, M1 applies to it too; any unresolved chain: refuse.
 - d. Checksum, source and version of H are copied unchanged from S_H.
+- e. Features. H's edges from S_H cover only the features S_H's graph was resolved with. For every path package with an edge into K, the declaration of K in the merged manifest (`features`, `default-features`, `optional`, `workspace = true` inheritance) and every `[features]` entry in the merged manifests that names K (`K/feat`, `K?/feat`, `dep:K`) must equal the same in the S_H side's manifest of that package. Any difference, or an S_H manifest that cannot be read: refuse. Features requested by registry or git dependents are covered by condition b (same id, same crate manifest, same edges).
 
 The registry requirements of other crates are not in git, so M1 proves them by
 identity (condition b), not by reading them. The merged manifests are used only
@@ -115,7 +116,10 @@ for path packages (condition a).
 Accept case: base serde 1.0.100; ours 1.0.101; theirs 1.0.102; every dependent
 exists in theirs with an edge to 1.0.102 and the member manifest says
 `serde = "1"`. Merge keeps 1.0.102.
-Neighbor refuse cases: ours adds crate `y` depending on serde 1.0.101 and
+Neighbor refuse cases: ours enables `features = ["derive"]` on serde in the
+member manifest (adding `serde_derive` to ours) and theirs bumps to the higher
+1.0.102 without it: the merged manifest enables derive but S_H's graph has no
+`serde_derive` (condition e), so M1 refuses and M3 must not prune it; ours adds crate `y` depending on serde 1.0.101 and
 theirs (higher) has no `y` (condition b); a member manifest says
 `serde = "<1.0.102"` (condition a); versions 1.0.101 and 2.0.0 (different class,
 so M1 does not apply and the base rules apply); either version is a prerelease.
@@ -128,13 +132,17 @@ theirs from base and from each other. Accept only if all hold:
 - a. The merged edge set E is: base edges, plus edges each side added, minus edges each side removed, with the same-name target in ours versus theirs resolved only by M1. If both sides changed the target of the same name differently without M1: refuse.
 - b. P is found in the merged manifest (4.5), and its dependency declarations are fully readable: names (using `package =` when renamed), requirement, `path`, `git` and `workspace = true` inheritance resolved against `[workspace.dependencies]` in the root manifest. Any form not read (unknown key, `[patch]` or `[replace]` in any workspace manifest, a dependency in several tables with different requirements): refuse.
 - c. The set of distinct crate names in E equals the set declared in the manifest (all kinds: normal, dev, build, target-specific). One name with several resolved versions: refuse.
-- d. Each registry edge's version satisfies the declared requirement. Each path edge points to a path package whose manifest path matches the declared `path`. Git edges are accepted only if identical in base, ours and theirs.
+- d. Each registry edge's version satisfies the declared requirement. Each path edge points to a path package whose manifest path matches the declared `path`, and, when the declaration also has a `version` requirement, whose version (from the merged manifest of that package) satisfies it. Git edges are accepted only if identical in base, ours and theirs.
 - e. Every edge target exists in the merged set.
 - f. Only edges (not P's own name or version) differ. P's `version` must equal in ours, theirs and the merged manifest.
 
 Accept case: base member `app` depends on serde; ours adds `anyhow`, theirs adds
 `tracing`; the merged manifest lists serde, anyhow and tracing; all three
 resolve in the merged set. Merge adds both edges.
+Path-version pair: `app` declares `lib = { path = "lib", version = ">=1.0.0" }`
+and both sides keep lib 1.0.0 (accept: edges combine). Refuse: ours bumps `lib`
+to 2.0.0, theirs pins `=1.0.0` and adds `anyhow`; the path matches but 2.0.0
+does not satisfy `=1.0.0` (condition d).
 Neighbor refuse cases: the merged manifest lists a fourth dependency that
 neither lockfile has an edge for (condition c); the merged manifest declares
 `anyhow = "2"` but ours resolved 1.0.80 (d); the manifest of `app` cannot be
@@ -208,10 +216,19 @@ unset (probed on git 2.50.1).
 | Operation | ours | theirs | base | Evidence |
 | --- | --- | --- | --- | --- |
 | `git merge` | `HEAD` (`%X` is `HEAD`) | the full sha in the environment variable `GITHEAD_<full sha>=<branch name>` whose value equals `%Y` | `%S`, the short sha of the merge base | exactly one `GITHEAD_` variable matches `%Y` |
-| `git cherry-pick` | `HEAD` | `%Y` is `<short sha> (<subject or ref>)`: the commit being applied | the first parent of theirs; `%S` is `parent of <short sha> (<subject or ref>)` | the sha in `%S` must equal the sha in `%Y` |
+| `git cherry-pick` | `HEAD` | `%Y` is `<short sha> (<subject or ref>)`: the commit being applied | the first parent of theirs; `%S` is `parent of <short sha> (<subject or ref>)` | the sha in `%S` must equal the sha in `%Y`; theirs must have exactly one parent (a merge commit picked with `-m N` names no selected parent in the label, so it is unidentifiable) |
 | `git rebase` (merge backend) | `HEAD` is the upstream plus commits replayed so far (rebase swaps the sides, so `%A` holds it) | as cherry-pick: the commit being replayed | as cherry-pick | same shape as cherry-pick |
 | `git revert` | not probed; handled only if a test establishes the label shape | | | otherwise unidentifiable |
 | `git merge-tree --write-tree`, `git merge-file`, `git stash`, `--apply` rebase backend, anything else | not identifiable | | | no manifest rules |
+
+**Proof of ours.** `HEAD` is ours only if it is what git actually merged
+into. `git cherry-pick -n` and similar start from the index, which can differ
+from `HEAD` (a staged manifest change that the lockfile does not reflect). The
+driver enables manifest rules only if the lockfile blob of `HEAD` at `%P` equals
+the bytes of `%A` and `git diff --cached --quiet HEAD` reports no staged
+difference (also the manifests it reads). If either check fails or cannot be
+run, there are no manifest rules (4.6). Whether the on-disk index reflects the
+starting state at driver time is **unverified**; a test must establish it.
 
 The driver resolves each sha with `git rev-parse --verify` and refuses an
 ambiguous short sha. Ours is `HEAD`, resolved the same way. A merge that has
@@ -264,15 +281,17 @@ they need no manifest. M2 and the path-dependents part of M1 refuse (R14).
 
 | Rule | Accept test | Neighbor refuse test |
 | --- | --- | --- |
-| M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
-| M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version; or manifest unavailable or conflicting |
+| M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | derive enabled only on the lower side; extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
+| M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 
 Manifest handling has its own tests (4.5): a manifest whose three-way text
 merge conflicts falls back to lockfile-only rules; a working tree that differs
 from the git objects does not change the result; a label that does not match
 the expected shape, several merge bases and an unknown operation give no
-manifest rules.
+manifest rules; `cherry-pick -m 2` of a merge commit (manifest rules must not
+run); `cherry-pick -n` with a staged manifest pin that `HEAD` lacks (manifest
+rules must not run).
 
 ### 4.8 Estimates per rule (the owner's 7 reachable conflicts)
 

@@ -44,12 +44,16 @@ decided in ADR 0010, which amends ADR 0003.
    crate declares a requirement the higher version satisfies in the merged
    manifest, and (b) every non-path package with an edge into the crate exists
    with the same id and checksum in the side that has the higher version, with
-   its edge to the higher version there. Otherwise refuse. Prereleases and
+   its edge to the higher version there, and (c) the declarations of the crate
+   in those path packages' merged manifests, including features and
+   `default-features`, equal those of the higher side, since its edges cover
+   only the features it was resolved with. Otherwise refuse. Prereleases and
    different compatibility classes are refused.
 5. M2, both sides changed the same path package's edges: combine only if the
    merged manifest is fully readable and its declared dependency names equal
    the merged edge names, each registry edge satisfies its declared
-   requirement, each path edge matches its declared path, git edges are
+   requirement, each path edge matches its declared path and satisfies its declared `version`
+   requirement if it has one, git edges are
    identical in all inputs, and every target exists in the merged set.
    Otherwise refuse.
 6. M3, pruning: drop a non-path package that is removed on one side and

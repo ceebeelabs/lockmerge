@@ -41,8 +41,12 @@ command is not part of v1.
    `HEAD`. For a merge, theirs is the full sha of the `GITHEAD_` variable whose
    value equals `%Y`, and base is `%S`. For cherry-pick and the rebase merge
    backend, theirs is the sha in `%Y` and base is its first parent, which must
-   agree with `%S`. Each sha is resolved with `git rev-parse --verify`; an
+   agree with `%S`. A cherry-pick target with more than one parent is
+   unidentifiable (the label does not name the selected parent, `-m N`). Each sha is resolved with `git rev-parse --verify`; an
    ambiguous short sha is refused.
+   Ours is proven, not assumed: manifest rules need the `HEAD` lockfile blob at
+   `%P` to equal `%A` and `git diff --cached --quiet HEAD` to report no staged
+   difference, because `cherry-pick -n` starts from the index, not `HEAD`.
 3. The driver finds no commits, and so applies no manifest rules (lockfile-only
    fallback; a rule that needs a manifest refuses, R14), when: the merge has
    several merge bases or a virtual ancestor; a label does not match the
@@ -92,7 +96,7 @@ command is not part of v1.
 - The driver shells out to `git` (`rev-parse`, `cat-file`, `ls-tree`,
   `merge-file`) and links no git library.
 - Tests required: a manifest that conflicts falls back; the result never
-  depends on the working tree; a label of the wrong shape, several merge bases
+  depends on the working tree; a label of the wrong shape, `cherry-pick -m 2` of a merge commit, `cherry-pick -n` with a staged manifest pin, several merge bases
   and an unknown operation give no manifest rules.
 
 ## References
