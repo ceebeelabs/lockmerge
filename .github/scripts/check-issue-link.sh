@@ -28,9 +28,23 @@ lookup_issue() {
 # A reference to another repository (owner/name#N) never matches because the
 # keyword must be followed directly by "#".
 extract_refs() {
-  printf '%s\n' "$1" |
-    grep -oiE '(^|[^[:alnum:]_])(fix(e[sd])?|close[sd]?|resolve[sd]?|part of)[[:space:]]+#[0-9]+([^[:alnum:]_]|$)' |
-    grep -oE '#[0-9]+' | tr -d '#' | sort -un
+  local rest=$1 m c
+  local pat='(^|[^[:alnum:]_])(fix(e[sd])?|close[sd]?|resolve[sd]?|part of)[[:space:]]+#([0-9]+)'
+  local restore
+  restore=$(shopt -p nocasematch)
+  shopt -s nocasematch
+  # Match one reference at a time and continue after it, so the text between
+  # two references never decides whether the second one is found.
+  while [[ $rest =~ $pat ]]; do
+    m=${BASH_REMATCH[0]}
+    rest=${rest#*"$m"}
+    c=${rest:0:1}
+    case $c in
+      [[:alnum:]_]) ;; # "#1abc" is not a reference
+      *) echo "$((10#${BASH_REMATCH[4]}))" ;;
+    esac
+  done | sort -un
+  eval "$restore"
 }
 
 check() {
@@ -108,6 +122,10 @@ self_test() {
   t "Part of mixed case" 0 alice "PART OF #1"
   t "keyword mid-text" 0 alice $'Summary\n\nThis change fixes #1 for good.'
   t "two valid issues" 0 alice $'Fixes #1\nPart of #2'
+  t "two refs, second closed" 1 alice "Fixes #1 closes #3"
+  t "two refs, comma" 0 alice "Fixes #1, Part of #2"
+  t "two refs, space" 0 alice "Fixes #1 Part of #2"
+  t "two refs, second a pull request" 1 alice "Fixes #1 fixes #4"
   t "pull request number" 1 alice "Fixes #4"
   t "closed issue" 1 alice "Fixes #3"
   t "missing number" 1 alice "Fixes #99"
