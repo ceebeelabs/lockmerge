@@ -82,10 +82,14 @@ fn driver_dir(opts: &CheckOpts) -> Result<PathBuf, String> {
     }
     // Absolute, so the replay's PATH entry does not depend on the directory
     // of the temporary repository.
-    let bin = std::fs::canonicalize(&bin).map_err(|e| format!("{}: {e}", bin.display()))?;
-    bin.parent()
-        .map(Path::to_path_buf)
-        .ok_or_else(|| "the driver binary has no directory".to_string())
+    // Only the directory is resolved: the selected basename stays, so a
+    // symlink to a differently named executable still runs as `lockmerge`
+    // from its own directory, never as its target's neighbor.
+    let parent = bin
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    std::fs::canonicalize(parent).map_err(|e| format!("{}: {e}", parent.display()))
 }
 
 fn check_index(eco_dir: &Path) -> Result<(), String> {
@@ -349,5 +353,21 @@ mod tests {
         let dir = driver_dir(&opts).unwrap();
         assert!(dir.is_absolute());
         assert_eq!(dir, std::fs::canonicalize(tmp.path()).unwrap());
+    }
+
+    #[test]
+    fn a_symlinked_driver_keeps_its_own_directory() {
+        use std::os::unix::fs::symlink;
+        let (here, elsewhere) = (TempDir::new("here").unwrap(), TempDir::new("else").unwrap());
+        // The selected `lockmerge` is a link to a differently named file in
+        // another directory, which also holds a competing `lockmerge`.
+        let target = elsewhere.path().join("real-driver");
+        std::fs::write(&target, "").unwrap();
+        std::fs::write(elsewhere.path().join("lockmerge"), "").unwrap();
+        symlink(&target, here.path().join("lockmerge")).unwrap();
+        let mut opts = CheckOpts::new(PathBuf::from("unused"));
+        opts.driver_bin = Some(here.path().join("lockmerge"));
+        let dir = driver_dir(&opts).unwrap();
+        assert_eq!(dir, std::fs::canonicalize(here.path()).unwrap());
     }
 }

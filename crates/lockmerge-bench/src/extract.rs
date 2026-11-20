@@ -326,6 +326,7 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
 
     let repo_dir = opts.out.join(&src.ecosystem).join(&src.name);
     let mut taken = 0;
+    let mut selected: BTreeSet<String> = BTreeSet::new();
     let mut per_merge: std::collections::BTreeMap<&str, usize> = Default::default();
     for c in &considered {
         let Outcome::Case(cand) = &c.outcome else {
@@ -339,6 +340,9 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
         } else {
             format!("{short}-{n}")
         };
+        selected.insert(name.clone());
+        // Rewrite from scratch, so no file of an earlier run survives.
+        let _ = fs::remove_dir_all(repo_dir.join(&name));
         write_case(
             &repo,
             src,
@@ -348,6 +352,17 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
             &opts.date,
         )?;
         taken += 1;
+    }
+    // Reconcile: case directories of this source that are not in the selected
+    // set are from an earlier run and no longer cases. Other sources live in
+    // other directories and are untouched.
+    if let Ok(entries) = fs::read_dir(&repo_dir) {
+        for e in entries.flatten() {
+            let name = e.file_name().to_string_lossy().into_owned();
+            if e.path().is_dir() && !selected.contains(&name) {
+                fs::remove_dir_all(e.path()).map_err(|e| e.to_string())?;
+            }
+        }
     }
     for (name, bytes) in &license_files {
         write(&repo_dir.join(name), bytes)?;

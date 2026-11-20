@@ -417,3 +417,32 @@ fn a_declared_license_that_contradicts_the_files_is_refused() {
     let err = extract(&src, &opts(&out, &cache)).unwrap_err();
     assert!(err.contains("license files at the pin show"), "{err}");
 }
+
+#[test]
+fn rerunning_with_a_smaller_cap_removes_the_cases_that_are_no_longer_selected() {
+    let (repo, m) = scenario();
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    // Another source's directory must survive.
+    let other = out.path().join("cargo/other-repo/abcdef123456");
+    fs::create_dir_all(&other).unwrap();
+    fs::write(other.join("base"), "x").unwrap();
+    extract(&source(&repo, 10), &opts(&out, &cache)).unwrap();
+    assert!(case_dir(&out, &m["re-resolved"]).exists());
+    extract(&source(&repo, 1), &opts(&out, &cache)).unwrap();
+    assert!(case_dir(&out, &m["reachable"]).exists());
+    assert!(!case_dir(&out, &m["re-resolved"]).exists());
+    assert!(other.join("base").exists());
+    // Every case directory present is a case the index says was taken.
+    let idx = index(&out);
+    for e in fs::read_dir(out.path().join("cargo/t-repo")).unwrap() {
+        let p = e.unwrap().path();
+        if p.is_dir() {
+            let sha = p.file_name().unwrap().to_string_lossy().into_owned();
+            assert!(
+                idx.iter()
+                    .any(|(k, v)| k.starts_with(&sha) && v.starts_with("case:")),
+                "{sha}"
+            );
+        }
+    }
+}
