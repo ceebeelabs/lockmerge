@@ -1,6 +1,6 @@
 # 0006. False-merge gate in CI
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
