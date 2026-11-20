@@ -1,6 +1,6 @@
 # 0004. Server-side merge fallback
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
