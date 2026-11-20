@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours adds the member native-a and theirs native-b; their links declarations are in manifests this crate does not read."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R15"

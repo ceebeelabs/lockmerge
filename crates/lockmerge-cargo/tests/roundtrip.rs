@@ -51,10 +51,10 @@ fn every_real_lockfile_parses_and_writes_the_same_bytes() {
 }
 
 /// The engine on real shapes: ours and theirs each add a different workspace
-/// member (path packages are never the subject of R15). The result is the
-/// canonical text of base plus both members.
+/// member. Their `links` declarations are in manifests this crate does not
+/// read, so the merge is refused with R15 rather than combined.
 #[test]
-fn real_lockfiles_merge_two_added_members() {
+fn real_lockfiles_refuse_two_different_added_members() {
     for (name, bytes) in real_files() {
         let base = parse(Role::Base, &bytes).unwrap();
         let with = |member: &str| {
@@ -81,8 +81,6 @@ fn real_lockfiles_merge_two_added_members() {
             render(lock.version, &items).unwrap()
         };
         let (ours, theirs) = (with("zz-ours"), with("zz-theirs"));
-        let mut both = ours.clone();
-        both.packages.extend(theirs.packages.clone());
         let (o, t) = (write(&ours), write(&theirs));
         let manifests = FakeManifests::new();
         let report = lockmerge_cargo::format()
@@ -97,11 +95,8 @@ fn real_lockfiles_merge_two_added_members() {
             )
             .unwrap();
         match report.outcome {
-            Outcome::Clean(clean) => assert!(
-                clean.bytes() == write(&both).as_slice(),
-                "{name}: merged bytes differ"
-            ),
-            Outcome::Refused(r) => panic!("{name}: refused: {r:?}"),
+            Outcome::Clean(_) => panic!("{name}: merged two different added members"),
+            Outcome::Refused(r) => assert_eq!(r.code.to_string(), "cargo.R15", "{name}"),
         }
     }
 }

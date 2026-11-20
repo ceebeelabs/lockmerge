@@ -1,4 +1,0 @@
-source = "Hand-built, following section 3 of docs/formats/cargo-lock.md: foo 1.0.0 from the registry and from git, and foo 2.0.0; the edge form name, version and source is not checked against real Cargo output. Ours adds a member, theirs adds another."
-path = "Cargo.lock"
-outcome = "merged"
-applied = ["cargo.E1", "core.B1", "core.B1", "core.B1", "core.B1", "core.B1", "core.B3", "core.B3", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

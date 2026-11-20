@@ -108,19 +108,30 @@ fn show(set: &BTreeSet<&Option<String>>) -> String {
         .join(", ")
 }
 
-/// The versions of each (name, source) in one input.
-fn versions_by_crate(m: &Lock) -> BTreeMap<(&str, &Option<String>), BTreeSet<&Version>> {
+/// A source without the precise git commit (`#<commit>`), so that an update of
+/// a git dependency, which changes the commit and maybe the version, is seen as
+/// a move of one crate. Full sources stay in the ids.
+fn crate_source(id: &Id) -> Option<String> {
+    id.source
+        .as_deref()
+        .map(|s| s.split_once('#').map_or(s, |(head, _)| head).to_string())
+}
+
+type CrateKey<'a> = (&'a str, Option<String>);
+
+/// The versions of each (name, source without commit) in one input.
+fn versions_by_crate(m: &Lock) -> BTreeMap<CrateKey<'_>, BTreeSet<&Version>> {
     let mut out: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
     for id in m.packages.keys() {
-        out.entry((id.name.as_str(), &id.source))
+        out.entry((id.name.as_str(), crate_source(id)))
             .or_default()
             .insert(&id.version);
     }
     out
 }
 
-fn crate_label(key: &(&str, &Option<String>)) -> String {
-    match key.1 {
+fn crate_label(key: &CrateKey<'_>) -> String {
+    match &key.1 {
         Some(s) => format!("{} ({s})", key.0),
         None => key.0.to_string(),
     }
@@ -211,6 +222,47 @@ fn version_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
             }
         }
     }
+    edge_moves(models)
+}
+
+fn targets<'a>(p: &'a Package, name: &str) -> BTreeSet<&'a Id> {
+    p.edges.iter().filter(|e| e.name == name).collect()
+}
+
+/// R14, through resolved edges: a package present in base and in a side whose
+/// dependency of one name now points at other ids than before (the old target
+/// dropped, a new one taken). This catches moves that the inventory of
+/// versions misses: the old version stays for another dependent, or the new
+/// one was already present.
+fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
+    for i in [1, 2] {
+        for (id, before) in &models[0].packages {
+            let Some(after) = models[i].packages.get(id) else {
+                continue;
+            };
+            let names: BTreeSet<&str> = before
+                .edges
+                .iter()
+                .chain(&after.edges)
+                .map(|e| e.name.as_str())
+                .collect();
+            for name in names {
+                let (b, a) = (targets(before, name), targets(after, name));
+                if a.difference(&b).next().is_some() && b.difference(&a).next().is_some() {
+                    return Err(refusal(
+                        codes::R14,
+                        id.to_string(),
+                        vec![
+                            ("branch", role_name(ROLES[i]).to_string()),
+                            ("dependency", name.to_string()),
+                            ("before", join(b)),
+                            ("after", join(a)),
+                        ],
+                    ));
+                }
+            }
+        }
+    }
     Ok(())
 }
 
@@ -222,18 +274,17 @@ fn join<T: std::fmt::Display>(items: impl IntoIterator<Item = T>) -> String {
         .join(", ")
 }
 
-/// R15: ours added a registry or git id that theirs lacks and base lacks, and
-/// theirs added a different one. Two crates that were never resolved together
-/// may declare the same native `links` library, and only the registry index
-/// can show that (`links` is not in git). This crate does not read it yet, so
-/// the trigger always refuses. Ids both sides added are not affected.
+/// R15: ours added an id that theirs lacks and base lacks, and theirs added a
+/// different one. Two crates that were never resolved together may declare the
+/// same native `links` library. For registry crates only the index can show
+/// that, and for path crates only their manifests; this crate reads neither
+/// yet, so the trigger always refuses, path packages included. Ids both sides
+/// added are not affected.
 fn different_additions(models: &[&Lock; 3]) -> Result<(), Refusal> {
     let only = |a: &Lock, b: &Lock, base: &Lock| -> Vec<String> {
         a.packages
             .keys()
-            .filter(|id| {
-                !id.is_path() && !b.packages.contains_key(id) && !base.packages.contains_key(id)
-            })
+            .filter(|id| !b.packages.contains_key(id) && !base.packages.contains_key(id))
             .map(|id| id.to_string())
             .collect()
     };
