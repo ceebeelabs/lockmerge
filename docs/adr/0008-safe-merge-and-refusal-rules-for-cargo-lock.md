@@ -94,7 +94,7 @@ decided in ADR 0010, which amends ADR 0003.
 8. Validate the merged set and refuse on failure: no duplicate ids; every edge
    resolves to exactly one package; every non-path package reachable from a
    path package; no two semver-compatible registry versions of one crate;
-   output sorted and canonical; when a registry id was added only by ours and a different one only by
+   output sorted and canonical; when a registry or git id was added only by ours and a different one only by
    theirs, the `links` proof of decision 15 is required (R15).
 9. The merged id set is a subset of the union of the inputs' ids; checksums
    are copied from inputs; no id is invented.
