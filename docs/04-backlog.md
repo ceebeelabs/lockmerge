@@ -281,6 +281,6 @@ merges under one operation but differs under another is flagged.
 
 Size S. Depends on: 5 (lockmerge-bench). Owner only.
 Add mergiraf's result per case as a comparison column. It is GPL-3.0, so run
-it as an external tool only and copy none of its code or data (ADR 0001).
+it as an external tool only and copy none of its code or data (`docs/00-prior-art.md` section 5).
 Acceptance: the report shows the column when the tool is installed and omits
 it otherwise; no mergiraf code or data is in the repository.
