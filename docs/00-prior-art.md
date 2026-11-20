@@ -94,8 +94,8 @@ lists TOML, YAML, JSON and `go.mod`/`go.sum`, and says nothing about
 [conflicts page](https://mergiraf.org/conflicts.html) says that when git's line
 merge succeeds, mergiraf's does too, except that it turns duplicate-signature
 keys into conflicts. It also says commutative parents (children whose order
-does not matter) are configured per language. **Unverified without running
-it:**
+does not matter) are configured per language. **Unverified here; section 7
+(the mergiraf run) tests it:**
 
 - whether `[[package]]` arrays of tables in TOML count as commutative,
 - how `pnpm-lock.yaml` mappings are treated,
@@ -146,7 +146,10 @@ refusals match the cases lockmerge should refuse.
   (version, source, checksum, integrity).
 - R2. One side removes an entry that the other side's changes now reference,
   or the other side modified it.
-- R3. Both sides bump the same package to different versions.
+- R3. Both sides bump the same package to different versions. Refused unless
+  a rule that proves the result applies; for Cargo that is only rule M1 in
+  [cargo-lock.md section 4.2](formats/cargo-lock.md#42-rules) (ADR 0008).
+  Nothing takes a higher version just because it is higher.
 - R4. Either side, or the base, does not parse, or has an unknown lockfile
   version.
 - R5. A manifest (`Cargo.toml`, `pyproject.toml`, `package.json`) disagrees
