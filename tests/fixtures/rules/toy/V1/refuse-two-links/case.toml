@@ -1,0 +1,5 @@
+# Hand-built for the toy format of crates/lockmerge-core/tests/common/mod.rs.
+source = "hand-built"
+path = "toy.lock"
+outcome = "refused"
+code = "toy.R15"

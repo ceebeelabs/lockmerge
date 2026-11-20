@@ -20,6 +20,8 @@ mod format;
 mod ids;
 mod proof;
 mod report;
+#[cfg(feature = "testkit")]
+pub mod testkit;
 
 pub use format::{
     Conflict, Context, Findings, Format, Inputs, ManifestResult, Manifests, Pipeline, Removal,
