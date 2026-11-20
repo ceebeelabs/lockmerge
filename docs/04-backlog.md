@@ -9,7 +9,7 @@ issues; an item's detail lives in the document it names.
 Source: [#22](https://github.com/ceebeelabs/lockmerge/issues/22), [#23](https://github.com/ceebeelabs/lockmerge/issues/23)
 
 - Server-side fallback (ADR 0004): hosted merges run no driver, so a `lockmerge check` path must catch what the driver would have refused.
-- Which of `HEAD`-relative commits the driver can name for rebase and cherry-pick is known only from the probe in ADR 0010 (git 2.50.1); other git versions are unverified.
+- How the driver names the commits for rebase and cherry-pick rests on one probe in ADR 0010 (git 2.50.1); other git versions are unverified.
 
 ## Cargo rules
 
