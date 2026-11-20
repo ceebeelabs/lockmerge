@@ -26,16 +26,17 @@ jobs:
 
   # ADR 0010 decision 5: git does not promise its merge driver labels, so the
   # real-git tests of lockmerge-env run on the oldest supported git and on the
-  # newest release. The oldest supported git is 2.39.5 (the git of Debian 12;
-  # git 2.34.1 does not expand %S, %X and %Y, so it cannot identify commits); "latest" is the highest release tag that is not a release
-  # candidate, found when the job runs.
+  # newest release. The oldest supported git is 2.44.0, the oldest known to
+  # expand %S, %X and %Y (git 2.39.5 and older pass them literally, and the
+  # driver then finds no commits). "latest" is the highest release tag that is
+  # not a release candidate, found when the job runs.
   git-versions:
     name: lockmerge-env on git ${{ matrix.git }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        git: ["2.39.5", "latest"]
+        git: ["2.44.0", "latest"]
     steps:
       - name: Check out the pull request
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
