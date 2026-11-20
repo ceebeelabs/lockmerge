@@ -20,8 +20,11 @@ The call is **narrow**: v1 covers `Cargo.lock`, then `uv.lock`, then
 - The package managers repair some lockfiles themselves (pnpm, yarn, old npm),
   so lockmerge adds less there. Cargo and uv have no documented self-repair of
   conflict markers that I could find.
-- The charter's mergiraf run on real conflicts is pending (see
-  [Mergiraf run](#7-mergiraf-run)).
+- The mergiraf run on 17 real conflicts (see
+  [Mergiraf run](#7-mergiraf-run)) found that it does not reliably produce
+  valid lockfiles: with TOML forced it exited 0 with an invalid `Cargo.lock`
+  in 5 of 12 cases, and with default settings it exited 0 with a wrong
+  `pnpm-lock.yaml` in 1 of 5.
 
 ## Owner decisions
 
@@ -30,9 +33,8 @@ and accepted every recommendation.
 
 1. **Scope is narrow:** `Cargo.lock`, then `uv.lock`, then `pnpm-lock.yaml`.
    npm, yarn, poetry, `go.sum` and `Gemfile.lock` are out of v1.
-2. **The mergiraf run is done by hand by the owner side** on 3 to 5 real
-   `Cargo.lock` and `pnpm-lock.yaml` conflicts, and appended in a later pull
-   request. ADR 0002 waits on it.
+2. **The mergiraf run is done by hand by the owner side** on real
+   `Cargo.lock` and `pnpm-lock.yaml` conflicts. Its results are in section 7.
 3. **mergiraf (GPL-3.0) is only an external comparison tool,** run by hand or
    in CI. It is never a dependency or a source of code or fixtures.
 4. **`pnpm-lock.yaml` stays third,** to be revisited with the data from the
@@ -100,7 +102,7 @@ it:**
 - whether its output on real conflicts is a valid lockfile.
 
 No lockfile-specific mergiraf issue turned up in my search, which is weak
-evidence only. The run in section 7 answers these.
+evidence only.
 
 ## 3. derived-merge: provability rules
 
@@ -207,22 +209,92 @@ and discards its merge result. Parallel agents make conflicts more frequent
 - Breadth would dilute the "never guess" test coverage.
 
 **Risk to the call:** mergiraf may already merge `Cargo.lock` and
-`pnpm-lock.yaml` validly. If the run in section 7 shows it does, the
+`pnpm-lock.yaml` validly. If the run in section 7 had shown it does, the
 Cargo-first case weakens, though the GPL and the missing validity checks
-remain. The answer must be in before ADR 0002 is accepted.
+remain. Section 7 shows it does not: mergiraf exited 0 with invalid or wrong
+lockfiles in several cases.
 
 ## 7. Mergiraf run
 
-**Status: pending.** The owner side will run mergiraf by hand on 3 to 5 real
-`Cargo.lock` and `pnpm-lock.yaml` conflicts and append the results here in a
-later pull request. Workers do not run it (standing rule 7), and no
-conflict data or fixtures are taken from it beyond what that run records.
-ADR 0002 waits on this section. If mergiraf produces valid, safely refusing
-merges, the ADR is revisited.
+Owner side, 2026-11-20.
+
+mergiraf 0.20.0 (installed with `cargo install --locked mergiraf`), run by hand
+on real lockfile conflicts from public repositories. A case is a merge commit
+whose two parents both changed the lockfile since their merge base, and where
+plain `git merge-file` conflicts. For each case, base, ours, theirs and the
+committed resolution were extracted, and mergiraf ran as
+`mergiraf merge base ours theirs -p <lockfile name> -o out` in two modes:
+
+- **As installed:** language detected from the file name. mergiraf 0.20.0 maps
+  `*.toml` to TOML and `*.yaml`/`*.yml` to YAML, so `Cargo.lock` gets a line
+  merge and `pnpm-lock.yaml` gets a structured YAML merge.
+- **Forced:** `-L toml` for `Cargo.lock` (as a user would get by mapping
+  `Cargo.lock` to mergiraf's TOML support), `-L yaml` for `pnpm-lock.yaml`.
+
+Each clean result (exit 0, no markers) was parsed (duplicate YAML keys
+rejected) and compared with the committed resolution. `Cargo.lock` results
+were also checked structurally: no duplicate `[[package]]` (name, version,
+source), and every `dependencies` entry resolves, with a bare name requiring
+exactly one package of that name.
+
+| Case (merge commit) | Lockfile | As installed | Forced language |
+|---|---|---|---|
+| rust-lang/cargo `d8f9130c6237` | Cargo.lock | conflict | conflict |
+| sharkdp/bat `02e6ff4183f6` | Cargo.lock | conflict | **exit 0, invalid**: two `libc` and two `byteorder` packages, so bare `libc`/`byteorder` dependencies are ambiguous |
+| sharkdp/bat `230abfd2bc14` | Cargo.lock | conflict | exit 0, same packages as committed; three entries say `syn 2.0.32` where cargo writes `syn` (valid, not cargo's canonical form) |
+| sharkdp/bat `571970f8ff28` | Cargo.lock | conflict | **exit 0, invalid**: `bat 0.24.0` listed twice; dangling dependency `itertools 0.12.1` |
+| sharkdp/bat `60693db73f53` | Cargo.lock | conflict | **exit 0, invalid**: duplicated packages make bare dependencies (`libc`, `nix`, `once_cell`, …) ambiguous |
+| sharkdp/fd `8500c3193d83` | Cargo.lock | conflict | conflict |
+| sharkdp/fd `c41d61eeda2f` | Cargo.lock | conflict | conflict |
+| sharkdp/fd `cdc6a37ed6f1` | Cargo.lock | conflict | conflict |
+| lapce/lapce `09b033f1937a` | Cargo.lock | correct | correct |
+| lapce/lapce `155a1dea9a96` | Cargo.lock | conflict | conflict |
+| lapce/lapce `b998c1f3a50f` | Cargo.lock | conflict | **exit 0, invalid**: 8+ packages listed twice (`alacritty_terminal`, `indexmap`, `lapce-core`, …) |
+| lapce/lapce `e0739a060a94` | Cargo.lock | conflict | **exit 0, invalid**: `lapce-core 0.0.12` listed twice |
+| vuejs/core `5afd04cbb850` | pnpm-lock.yaml | conflict | conflict |
+| vuejs/core `5ec937723af3` | pnpm-lock.yaml | conflict | conflict |
+| vuejs/core `982a145d3854` | pnpm-lock.yaml | **exit 0, wrong** (see below) | **exit 0, wrong** (same) |
+| vuejs/core `e12b10ac3ea3` | pnpm-lock.yaml | conflict | conflict |
+| vuejs/core `eaf5455d7745` | pnpm-lock.yaml | conflict | conflict |
+
+vuejs/core `982a145d3854` ("Merge branch 'main' into minor"): one side
+removed the `packages/reactivity-transform` importer, and the other kept it
+and changed versions. mergiraf merged cleanly and dropped the importer, but
+the merged tree still contains `packages/reactivity-transform`, so the
+lockfile no longer matches the workspace. It also pinned `vite` 5.0.6 and
+`@codspeed/vitest-plugin` for vite 5.0.6, where the committed resolution has
+5.0.7. With no configuration beyond mergiraf's defaults, this is a silently
+wrong `pnpm-lock.yaml`.
+
+Caveat: the committed resolution of bat `571970f8ff28` itself lists
+`itertools 0.13.0` twice, so that project committed a lockfile cargo would
+rewrite. mergiraf's problems in that case are different ones.
+
+### Findings
+
+- **Cargo.lock, as installed:** 11 of 12 conflict and 1 is correct. mergiraf
+  does no harm here, but it adds almost nothing over git.
+- **Cargo.lock, TOML forced:** 5 of 12 merge "cleanly" into invalid lockfiles
+  (duplicate packages, dangling or ambiguous dependencies), 1 is equivalent
+  but not in cargo's form, 1 is correct, and 5 conflict. A generic structured
+  merge does not know Cargo.lock's invariants, so it cannot be trusted with
+  them.
+- **pnpm-lock.yaml (YAML is detected by default):** 4 of 5 conflict and 1
+  merges cleanly into a wrong lockfile.
+- **Answer to the charter's question:** no. mergiraf does not reliably
+  produce valid lockfiles, and when it fails it often exits 0, which is the
+  outcome lockmerge exists to prevent. This supports the narrow scope and
+  ADR 0002. mergiraf stays an external comparison tool in the benchmark, and
+  these 17 cases are candidate benchmark fixtures. bat, fd, lapce and cargo
+  are MIT and/or Apache-2.0, and vuejs/core is MIT; check each license when
+  the fixtures are extracted.
+
+Not done: running `cargo metadata --locked` or `pnpm install --frozen-lockfile`
+on the merged trees. The structural checks above are enough to show the
+invalid cases. The validity commands are for the benchmark (part D).
 
 ## 8. Verification gaps
 
-- Mergiraf's behavior on `Cargo.lock` and `pnpm-lock.yaml` (section 7).
 - Whether Cargo handles conflict markers on its own: Cargo source not read.
 - uv: only a third-party source for the delete-and-re-lock advice.
 - pnpm `--resolution-only`: not found in the docs.

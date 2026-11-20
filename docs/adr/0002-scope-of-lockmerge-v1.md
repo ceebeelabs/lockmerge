@@ -3,10 +3,6 @@
 - Status: Proposed
 - Date: 2026-11-20
 
-This ADR waits on the mergiraf run described in
-[docs/00-prior-art.md](../00-prior-art.md#7-mergiraf-run), which is pending.
-It is not accepted before that run is appended.
-
 ## Context
 
 The charter lists eight lockfile formats. Research in
@@ -14,8 +10,15 @@ The charter lists eight lockfile formats. Research in
 existing drivers (npm-merge-driver, package-lock-merge-driver, derived-merge),
 that pnpm repairs its own lockfile on install, and that Cargo has only one
 driver, which is unlicensed, stale and discards its merge result. uv has no
-known driver. Mergiraf (GPL-3.0) may already merge some of these files; that
-has not been verified.
+known driver. Mergiraf (GPL-3.0) might already merge some of these files, so the
+owner ran mergiraf 0.20.0 by hand on 17 real conflicts (12 `Cargo.lock`, 5
+`pnpm-lock.yaml`; [section 7](../00-prior-art.md#7-mergiraf-run)). With TOML
+forced for `Cargo.lock`, it exited 0 with an invalid lockfile in 5 of 12 cases
+(duplicate packages, dangling or ambiguous dependencies); as installed, 11 of
+12 conflicted and 1 was correct. For `pnpm-lock.yaml` with default settings, it
+exited 0 with a wrong lockfile in 1 of 5 cases (a removed importer still
+present in the workspace, and a stale `vite` version). It does not reliably
+produce valid lockfiles, and when it fails it often exits 0.
 
 ## Decision
 
@@ -51,8 +54,11 @@ is never a dependency or a source of code or fixtures.
 
 - v1 effort goes to Cargo first; the format docs and the benchmark start there.
 - npm, yarn, poetry, `go.sum` and `Gemfile.lock` users get nothing from v1.
-- If the mergiraf run shows it already produces valid `Cargo.lock` or
-  `pnpm-lock.yaml` merges, this decision is revisited, and pnpm may be dropped.
+- The mergiraf results support this scope: a generic structured merge does not
+  know the lockfile invariants. pnpm stays third and may still be dropped if
+  the format research shows `pnpm install` already gives a safe offline result.
+- The 17 cases are candidate benchmark fixtures; each source license is
+  checked at extraction.
 - Using mergiraf only as an external comparison keeps the GPL out of the
   codebase; anything more needs the owner's sign-off.
 
