@@ -1,0 +1,5 @@
+# Hand-built for the toy format of crates/lockmerge-core/tests/common/mod.rs.
+source = "hand-built"
+path = "toy.lock"
+outcome = "merged"
+applied = ["toy.E1", "toy.M1", "toy.V1"]
