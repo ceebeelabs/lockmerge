@@ -51,6 +51,12 @@ decided in ADR 0010, which amends ADR 0003.
    dependency of every path package, not only the bumped crate, because
    features reach it indirectly. Otherwise refuse. Prereleases and
    different compatibility classes are refused.
+   F, whenever the merged set takes a version of a crate that differs from
+   an input's, the chosen entry's dependency names must contain the union of
+   that crate's dependency names in base, ours and theirs, because features
+   reach crates indirectly and registry manifests are not in git; otherwise
+   refuse (lockfile only, so it applies in the fallback). Without manifests M1
+   also refuses whenever any path package exists.
    B1, any one-sided version change of a crate present in base is taken only
    if every path package with an edge into it has a merged-manifest
    requirement the new version satisfies; if manifests are unavailable and such
@@ -72,7 +78,9 @@ decided in ADR 0010, which amends ADR 0003.
 8. Validate the merged set and refuse on failure: no duplicate ids; every edge
    resolves to exactly one package; every non-path package reachable from a
    path package; no two semver-compatible registry versions of one crate;
-   output sorted and canonical.
+   output sorted and canonical; no two ids of one crate name (different
+   version or source) unless some single input contains both, because `links`
+   uniqueness is in registry manifests that are not in git (R15).
 9. The merged id set is a subset of the union of the inputs' ids; checksums
    are copied from inputs; no id is invented.
 10. Manifests come from git objects only. The merged manifest is the

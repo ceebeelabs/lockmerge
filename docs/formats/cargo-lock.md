@@ -92,6 +92,25 @@ Per-id base rules (lockfile only):
 | Both changed the same id differently | refuse unless M1 or M2 applies |
 | Removed on one side, changed on the other | refuse unless M3 applies |
 
+**F. Dependency carry for version changes (lockfile only).** Features decide
+which optional dependencies a crate has in the lockfile, features reach a crate
+through other crates (`app` enables `rand/getrandom`, which forwards to
+`rand_core/getrandom`), and registry manifests are not in git. So whenever the
+merged set takes a different version of a crate than at least one input has
+(M1, B1, or the base rules choosing between differing entries of one crate
+name), the chosen entry's set of dependency names must contain the union of the
+dependency names of that crate's entries in base, ours and theirs. If any is
+missing: refuse. F needs no manifest, so it applies in the fallback too. It
+refuses some legitimate bumps that drop a dependency; that cost is accepted.
+Accept: rand_core 0.6.2 (base), 0.6.3 (ours), 0.6.4 (theirs), all with the same
+dependency names. Refuse: ours has `getrandom` on rand_core 0.6.3 (feature
+enabled), theirs' 0.6.4 has none; this holds with no manifests, with ours not
+bumping rand_core (0.6.2 gaining `getrandom`), and with the feature requested
+through a changed indirect dependent (`wrapper` 1.1.0 on ours newly enabling
+`rand/getrandom`). A manifest-only feature change that the lockfile does not
+show on one side is caught by M1 condition e where manifests exist, and in the
+fallback by refusing M1 whenever a path package exists.
+
 **B1. Manifest agreement for version changes.** A one-sided change that moves a
 crate present in base to another version (a bump or downgrade, with the other
 side leaving it alone) is taken only if, for every path package with an edge into
@@ -119,7 +138,7 @@ taken from side S_H; L is the other. Accept only if **all** hold:
 - b. Every non-path package in the merged set with an edge into K is present in S_H with the same id and checksum, with its K edge pointing at H there. This proves its own requirement admits H, because the same id and checksum means the same crate manifest. A registry or git package that exists only on the L side: refuse (its requirement is not in git and not provable).
 - c. The merged set keeps only H in K. Edges into L or H are written as edges to H. H's entry and its edges come from S_H, and every edge must resolve in the merged set (V2). If H's edges name something that is itself a both-sides-bumped crate, M1 applies to it too; any unresolved chain: refuse.
 - d. Checksum, source and version of H are copied unchanged from S_H.
-- e. Features. H's edges from S_H cover only the features S_H's graph was resolved with, and features reach K indirectly (an app enabling a feature of `rand` that forwards to `rand_core/getrandom`). So the check is not limited to dependents of K: for **every** path package in the merged set, the declarations of every registry and git dependency in the merged manifest (`features`, `default-features`, `optional`, `workspace = true` inheritance) and every `[features]` entry naming an external crate (`C/feat`, `C?/feat`, `dep:C`) must equal the same in the S_H side's manifest of that package. Any difference, or an S_H manifest that cannot be read: refuse. This proves S_H's lockfile was resolved with the merged feature set. Without manifests, M1 refuses whenever any path package exists (fallback, 4.6).
+- e. Features. H's edges from S_H cover only the features S_H's graph was resolved with, and features reach K indirectly (an app enabling a feature of `rand` that forwards to `rand_core/getrandom`). So the check is not limited to dependents of K: for **every** path package in the merged set, the declarations of every registry and git dependency in the merged manifest (`features`, `default-features`, `optional`, `workspace = true` inheritance) and every `[features]` entry naming an external crate (`C/feat`, `C?/feat`, `dep:C`) must equal the same in the S_H side's manifest of that package. Any difference, or an S_H manifest that cannot be read: refuse. This proves S_H's lockfile was resolved with the merged feature set. Without manifests, M1 refuses whenever any path package exists (fallback, 4.6), and F applies in every case.
 
 The registry requirements of other crates are not in git, so M1 proves them by
 identity (condition b), not by reading them. The merged manifests are used only
@@ -189,6 +208,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - V3. Every non-path package is reachable from a path package.
 - V4. No two registry packages of the same name and source are semver-compatible (owner decision). Rests on the [resolver docs](https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility); the 0.x rule is inferred from their examples. **Unverified by running Cargo.**
 - V5. Output sorted and canonical (section 5).
+- V6. Native links. Cargo allows one package per `links` value, and `links` is in registry manifests, which are not in git. No two packages of the same name with different version or source may be in the merged set unless some single input file contains both. Otherwise refuse (R15).
 
 ### 4.4 Cases that must be refused
 
@@ -205,13 +225,15 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R11. Prerelease versus release difference on one package; any non-semver version string.
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
+- R15. Two ids of one crate name (different version or source) in the merged set that no single input contains together (V6); for example ours adds `libgit2-sys` 0.11 to member a and theirs adds 0.12 to member b, both declaring `links = "git2"`.
 - R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
 Neighbors that **merge** (each needs its own test): both sides add different
 crates; both add the same entry byte-identically; one side bumps and the other
 does not touch it; one side removes an unused crate and the other did not touch
-it; both sides add different versions of one crate that are not
-semver-compatible (0.6.5 and 0.7.3 of rand).
+it; two versions of one crate that are not semver-compatible (0.6.5 and 0.7.3
+of rand) when some input already has both (V6 accept; the neighboring refusal
+is the `libgit2-sys` 0.11 and 0.12 case, R15).
 
 ### 4.5 Reading manifests from git objects
 
@@ -291,8 +313,9 @@ code task states each crate and its license in its PR (standing rule 6).
 Whenever the commits are not identified (4.5), or a manifest cannot be read,
 is missing on a side, or does not merge cleanly as text, run the base rules of
 4.2 only, for the whole file. M3 and the registry-dependents part of M1
-(conditions b to d, when no path package has an edge into K) still apply, since
-they need no manifest. M2, the path-dependents part of M1 and B1 (for a crate with a path dependent) refuse (R14).
+(conditions b to d, when no path package exists at all, since features can come
+from any member, see condition e) still apply, with F and V6, since they need
+no manifest. M2, the path-dependents part of M1 and B1 (for a crate with a path dependent) refuse (R14).
 
 ### 4.7 Accept and refuse tests (one pair per rule)
 
@@ -300,6 +323,8 @@ they need no manifest. M2, the path-dependents part of M1 and B1 (for a crate wi
 | --- | --- | --- |
 | M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | derive enabled only on the lower side; extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
 | M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
+| F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
+| V6 | 0.6.5 and 0.7.3 already together in base | `libgit2-sys` 0.11 and 0.12 added by different sides |
 | B1 | one-sided serde bump; other side adds a crate to another member | other side pins `=1.0.100` in a manifest only |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 
