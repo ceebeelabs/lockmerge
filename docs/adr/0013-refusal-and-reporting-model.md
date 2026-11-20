@@ -1,6 +1,6 @@
 # 0013. Refusal and reporting model
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
