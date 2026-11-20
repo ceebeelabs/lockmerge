@@ -37,8 +37,8 @@ rejects them before the pull request merges.
   and a reviewer can ask for one when it is missing.
 - The owner holds the accept/reject decision, so nothing merges as `Proposed`.
 - Changing a decision means writing a new ADR that supersedes the old one.
-- Numbering, titles and the index are checked by hand for now; an automated
-  lint can come with the Cargo workspace.
+- The `adr lint` check enforces numbering, titles, status, dates and the index
+  on every pull request.
 
 ## References
 

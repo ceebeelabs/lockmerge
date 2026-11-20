@@ -25,8 +25,11 @@ Required findings block the merge. Anything else goes in `optional`.
 
 ADRs (`docs/adr/`) in the diff:
 
-- Each is `Proposed`, has no status in its title, and is in the index in
-  `docs/adr/README.md`.
+- An ADR the author adds or changes is `Proposed`, has no status in its
+  title, and is in the index in `docs/adr/README.md`.
+- A status change to Accepted, Rejected, Deprecated or Superseded is valid
+  when the owner made it (an owner commit, or the owner decision recorded on
+  the pull request or issue); it is not a finding.
 - A significant decision (hard to reverse, shaping more than one format or
   crate, or one a reviewer would ask "why?" about) without an ADR is a
   finding.
