@@ -132,6 +132,14 @@ with the same id in S (M1 condition b), because its feature requests were
 resolved there. If manifests are unavailable and any path package exists, or S's
 manifest cannot be read: refuse. The check reaches indirect dependents because
 (i) covers every path package's declarations, not only those naming the crate.
+Forwarding: if any path package, member or nonmember path crate at any depth of
+path dependencies, has a `[features]` entry that forwards to the changed crate
+(`dep/feature`, `dep?/feature`, or `dep:dep`/an entry enabling the optional
+dependency), the version change is refused unless the chosen version stays in
+the same semver compatibility class as base's. The forwarding chain is not
+proven. Accept: wrapper has `legacy = ["rand/min_const_gen"]` and rand goes
+0.8.4 to 0.8.5. Refuse: same wrapper, ours enables `legacy` and adds an
+unrelated path edge, theirs upgrades rand 0.8 to 0.9.
 Accept: base rand 0.8.4 with `default-features = false`; neither side changes
 features; theirs upgrades to 0.9 and its lockfile has every dependent. Refuse:
 ours enables `min_const_gen` and theirs alone upgrades to 0.9, which lacks the
@@ -235,7 +243,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - V3. Every non-path package is reachable from a path package.
 - V4. No two registry packages of the same name and source are semver-compatible (owner decision). Rests on the [resolver docs](https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility); the 0.x rule is inferred from their examples. **Unverified by running Cargo.**
 - V5. Output sorted and canonical (section 5).
-- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git. When one registry id was added only by ours (not in base) and a different one only by theirs, they have never been resolved together, so the merge needs the `links` proof of 4.5 ("Registry index cache"): every registry id in the merged set has an index entry matching name, version and checksum, and no two packages share a `links` value. Without the proof: refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
+- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git. When one registry or git id was added only by ours (not in base) and a different registry or git id only by theirs, they have never been resolved together, so the merge needs the `links` proof of 4.5 ("Registry index cache"). The proof covers registry pairs only; a pair with a git id on either side is always refused, since `links` cannot be read for git sources. For registry pairs: every registry id in the merged set has an index entry matching name, version and checksum, and no two packages share a `links` value. Without the proof: refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
 
 ### 4.4 Cases that must be refused
 
@@ -252,7 +260,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R11. Prerelease versus release difference on one package; any non-semver version string.
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
-- R15. A registry id added only by ours and a different one added only by theirs, and the `links` proof (4.5) fails: the cache is absent, unreadable or in a format we cannot read exactly; an id has no entry, or its checksum differs from the entry's; any git source id is in the merged set; a path package's `links` cannot be read; or two packages share a `links` value. Examples: ours adds `libgit2-sys` 0.11 and theirs 0.12 (both `links = "git2"`), or ours adds `libsqlite3-sys` and theirs `sqlite3-src` (both `links = "sqlite3"`).
+- R15. A registry or git id added only by ours and a different registry or git id added only by theirs, and either side's id is a git source, or the `links` proof (4.5) fails: the cache is absent, unreadable or in a format we cannot read exactly; an id has no entry, or its checksum differs from the entry's; any git source id is in the merged set; a path package's `links` cannot be read; or two packages share a `links` value. Examples: ours adds git crate `native-a` to member a and theirs git crate `native-b` to member b, both `links = "sqlite3"` (always refused); ours adds `libgit2-sys` 0.11 and theirs 0.12 (both `links = "git2"`), or ours adds `libsqlite3-sys` and theirs `sqlite3-src` (both `links = "sqlite3"`).
 - R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
 Neighbors that **merge** (each needs its own test): both sides add the same
@@ -349,7 +357,7 @@ matching entry and no two packages share a `links` value. This widens the
 "manifests from git objects only" rule of ADR 0003 and ADR 0010 for this one
 input. The result depends on the cache being present, but a missing cache only
 causes refusals, never a different merge. Tests: cache present and links-free
-(accept); shared `links` (refuse); checksum mismatch (refuse); cache absent
+(accept); a git id on either side (refuse); shared `links` (refuse); checksum mismatch (refuse); cache absent
 (refuse); unknown cache format (refuse).
 
 **Tools.** Shell out to the `git` executable (`rev-parse`, `cat-file`,
@@ -375,7 +383,7 @@ no manifest (V6's proof reads the registry index cache; without it, R15 refuses)
 | D | other side's feature change, one-sided upgrade 0.8.4 to 0.8.5 | one-sided downgrade to 0.8.3 |
 | F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
 | V6 | cache present, both added crates links-free; or only one side adds a crate | shared `links` (`libsqlite3-sys` and `sqlite3-src`); checksum mismatch; cache absent; unknown cache format |
-| C | upgrade across a class with unchanged feature declarations | other side enables a feature the new class lacks; manifests unavailable |
+| C | upgrade across a class with unchanged feature declarations; forwarding entry with a same-class bump | other side enables a feature the new class lacks; wrapper `legacy = ["rand/min_const_gen"]` with rand 0.8 to 0.9; manifests unavailable |
 | B1 | one-sided serde bump; other side adds a crate to another member | other side pins `=1.0.100` in a manifest only |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 

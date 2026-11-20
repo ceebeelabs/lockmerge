@@ -58,7 +58,12 @@ decided in ADR 0010, which amends ADR 0003.
    registry or git dependent of the crate exists with the same id in that
    side; otherwise refuse (also when manifests are unavailable and a path
    package exists). A lower or newer-class version can lack a feature the
-   other side enables.
+   other side enables. If any path package (member or nonmember, at any
+   depth of path dependencies) has a `[features]` entry forwarding to the
+   changed crate (`dep/feature`, `dep?/feature` or enabling the optional
+   dependency), the change is refused unless the chosen version stays in the
+   same compatibility class as base's; the chain is not proven (wrapper
+   `legacy = ["rand/min_const_gen"]` with rand 0.8 to 0.9 is refused).
    D, refuse any chosen registry or git version lower than its version in
    base: a lower version can lack a feature the other side's manifest enables,
    which no lockfile data can prove; M1 needs the higher version above base.
@@ -111,7 +116,12 @@ decided in ADR 0010, which amends ADR 0003.
     90% on the agent-style corpus. The owner's 7 reachable cases are kept as
     a regression set with per-rule attribution.
 
-15. Native links proof (R15). For each registry id only ours added and each
+15. Native links proof (R15). The trigger is a registry or git id added only
+    by ours with a different registry or git id added only by theirs. A pair
+    with a git id on either side is always refused, because `links` cannot be
+    read for git sources (git crates `native-a` and `native-b`, both
+    `links = "sqlite3"`, added to different members: refuse). For registry
+    pairs, for each registry id only ours added and each
     different one only theirs added, read the id's entry from Cargo's local
     registry index cache (`CARGO_HOME`, default `~/.cargo`,
     `registry/index/<registry>/...`: the sparse index cache and the git
@@ -127,7 +137,7 @@ decided in ADR 0010, which amends ADR 0003.
     only" for this one input (the local registry index cache). The result
     depends on the cache's presence, but a missing cache only causes
     refusals, never a different merge. Tests: cache present and links-free
-    (accept), shared `links` (refuse), checksum mismatch (refuse), cache
+    (accept), a git id on either side (refuse), shared `links` (refuse), checksum mismatch (refuse), cache
     absent (refuse), unknown cache format (refuse).
 
 ## Considered options
