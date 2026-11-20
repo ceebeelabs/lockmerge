@@ -38,4 +38,4 @@ change (YYYY-MM-DD).
 
 | ADR | Decision | Status |
 | --- | --- | --- |
-| [0001](0001-record-architecture-decisions.md) | Record architecture decisions as ADRs in `docs/adr/` | Proposed |
+| [0001](0001-record-architecture-decisions.md) | Record architecture decisions as ADRs in `docs/adr/` | Accepted |
