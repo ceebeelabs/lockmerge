@@ -28,8 +28,9 @@ will not be merged, however rare the case. When in doubt, refuse.
   belongs to another repository does not count. To fix a failure, correct the
   reference in the description; editing it re-runs the check. To test the
   logic locally, run `.github/scripts/check-issue-link.sh --self-test`. The
-  check runs the default branch's copy of the script, so a change to the
-  script takes effect after it merges.
+  check runs from the default branch's workflow and script, never the pull
+  request's, so a change to either takes effect after it merges; a separate
+  job self-tests the pull request's copy of the script.
 - Fill in the pull request template: what changed and why, the commands you
   ran and their results, and anything left for later.
 - Use American English.
