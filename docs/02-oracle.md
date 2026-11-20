@@ -262,6 +262,20 @@ yet checked stays `resolved-unverified`, counts against `max_unverified`
 not merge cleanly in the replay, the audit cannot judge the case; it is listed
 as unaudited and the owner reviews it.
 
+*Preparation.* Cargo rejects a package with no targets, and manifests alone omit
+implicitly discovered targets such as `src/lib.rs` and `src/main.rs`
+([target auto-discovery](https://doc.rust-lang.org/cargo/reference/cargo-targets.html#target-auto-discovery)).
+So the audit does not run on the saved manifests alone. It restores the
+project files from the original repository at the pinned commits (a fresh
+checkout of the merge's parents, with the merged lockfile and the merged
+manifests from the replay written over them), or, where the original is
+unavailable, adds empty target stubs for each package, recorded in the audit
+report. A failure to prepare the tree (checkout, missing target, fetch) is
+reported as `audit-prep-failed`, listed as unaudited, and never as
+`resolved-wrong`. Only a failure of the real tool's lockfile check on a
+correctly prepared tree is an L3 failure. Details belong to the audit's own
+design.
+
 **Strict rule (owner, 2026-11-20).** On a reachable case, a result that is
 valid but differs from `expected` after normalization is `resolved-wrong`
 unless a reviewed waiver exists. The strict rule is applied to reachable cases
@@ -306,8 +320,11 @@ only the TOML and YAML parsers.
 could derive from the three inputs even though its ids are present (for
 example a bump to a version that exists on the other side, made on purpose in
 the merge commit). If lockmerge's result is valid, differs from `expected`, and
-a person judges the difference justified, a `[waiver]` table with a reason is
-added to that case's `case.toml`. A waived case is `resolved-waived`, is listed
+a person judges the difference justified, a `[waiver]` table with a reason and
+the SHA-256 of the reviewed result after normalization is added to that case's
+`case.toml`. The waiver covers that exact normalized result only: any other L2
+mismatch on the case is `resolved-wrong`, even if the case has a waiver, so a
+later regression cannot hide behind it. A waived case is `resolved-waived`, is listed
 in every report, and does not count as correct. The owner reviews waivers
 (ADR 0006).
 
@@ -375,7 +392,8 @@ about 65%.
 1. any case is `resolved-wrong` or `error`. This is unconditional: a waiver
    never exempts an `error` or a `resolved-wrong`. Waivers apply only during
    classification, to a reachable result that passes L0 and L1 but differs at
-   L2, and make it `resolved-waived`; a waiver that does not parse or has no
+   L2 and equals the normalized result the waiver names, and make it
+   `resolved-waived`; any other L2 mismatch is `resolved-wrong`; a waiver that does not parse or has no
    reason is ignored;
 2. the reachable resolution rate (`S_r` / `C_r`) is below `tests/fixtures/<ecosystem>/baseline.toml`.
    The first baseline is **the measured rate when the benchmark first runs** (it

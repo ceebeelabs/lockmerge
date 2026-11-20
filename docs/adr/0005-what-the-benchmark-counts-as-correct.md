@@ -30,15 +30,17 @@ For a reachable case, a result is correct when all three hold:
    erases only differences the format document proves meaningless.
 
 A reachable result that is valid but differs counts as wrong unless a person
-records a reviewed waiver with a reason in `case.toml`; waived cases are
-reported separately and never count as correct.
+records a reviewed waiver with a reason in `case.toml`. A waiver is bound to
+the hash of one normalized result; any other mismatch on that case is still
+wrong. Waived cases are reported separately and never count as correct.
 
 For a re-resolved case, a refusal is correct. A resolution that fails 1 or 2 is
 wrong. A resolution that passes both is `resolved-unverified`: reported, never
 counted as correct, limited by a baseline maximum, and each new one reviewed by
 the owner. The scheduled real-tool audit must check every `resolved-unverified`
-result; any failure there counts as a wrong merge (a false merge) and is
-reported as one.
+result; any failure of the real tool on a correctly prepared tree counts as a wrong
+merge (a false merge) and is reported as one. A failure to prepare the tree is
+reported separately and is not a lockfile failure.
 
 Re-resolved cases are excluded from the resolution-rate denominator and reported
 separately. The headline metric is the resolution rate on reachable conflicts,

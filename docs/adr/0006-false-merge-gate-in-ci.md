@@ -22,7 +22,8 @@ fails when any of these hold:
 1. any case is `resolved-wrong` or `error` (crash, timeout, bad output, or a
    swapped-order disagreement), unconditionally. A waiver applies only during
    classification, to a reachable result that passes L0 and L1 but differs at
-   L2; it never exempts an `error` or a `resolved-wrong`;
+   L2 and equals the normalized result the waiver names; any other L2 mismatch
+   is `resolved-wrong`, and a waiver never exempts an `error`;
 2. the reachable resolution rate (`resolved-correct` among reachable cases where
    plain git conflicted, over all such cases) is below the committed `baseline.toml` for the
    ecosystem. The first baseline is the rate measured when the benchmark first
