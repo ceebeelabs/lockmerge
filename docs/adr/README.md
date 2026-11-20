@@ -39,3 +39,4 @@ change (YYYY-MM-DD).
 | ADR | Decision | Status |
 | --- | --- | --- |
 | [0001](0001-record-architecture-decisions.md) | Record architecture decisions as ADRs in `docs/adr/` | Accepted |
+| [0002](0002-scope-of-lockmerge-v1.md) | Scope of lockmerge v1: narrow (Cargo.lock, uv.lock, pnpm-lock.yaml) | Accepted |
