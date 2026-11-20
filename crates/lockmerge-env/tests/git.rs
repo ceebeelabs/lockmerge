@@ -521,3 +521,65 @@ fn paths_that_leave_the_top_level_are_unavailable() {
         ManifestResult::Unavailable(_)
     ));
 }
+
+#[test]
+fn a_partial_clone_never_fetches_a_missing_manifest() {
+    let f = diverged();
+    let src = &f.repo.dir;
+    f.repo.git(&["config", "uploadpack.allowFilter", "true"]);
+    f.repo
+        .git(&["config", "uploadpack.allowAnySHA1InWant", "true"]);
+    let clone = Repo::new();
+    let url = format!("file://{}", src.display());
+    let out = base_cmd(&clone.dir)
+        .args([
+            "fetch",
+            "-q",
+            "--no-tags",
+            "--filter=blob:none",
+            &url,
+            "+refs/heads/*:refs/remotes/o/*",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    clone.git(&["config", "remote.o.url", &url]);
+    clone.git(&["config", "remote.o.promisor", "true"]);
+    clone.git(&["config", "remote.o.partialclonefilter", "blob:none"]);
+    clone.git(&["config", "extensions.partialclone", "o"]);
+    let missing = |r: &Repo| r.git(&["rev-list", "--objects", "--missing=print", "--all"]);
+    let before = missing(&clone);
+    assert!(before.contains('?'), "setup: blobs must be missing");
+    let m = GitManifests::with_commits(
+        Git::new().in_dir(&clone.dir),
+        Identified {
+            base: f.base.clone(),
+            ours: f.ours.clone(),
+            theirs: f.theirs.clone(),
+        },
+    );
+    assert!(matches!(
+        m.merged("Cargo.toml"),
+        ManifestResult::Unavailable(_)
+    ));
+    assert_eq!(missing(&clone), before, "no object may be fetched");
+}
+
+#[test]
+fn old_git_placeholders_left_literal_are_unavailable() {
+    // git before the %S %X %Y placeholders passes them unexpanded.
+    let f = diverged();
+    let git = Git::new().in_dir(&f.repo.dir);
+    let args = DriverArgs {
+        base_label: "%S",
+        ours_label: "%X",
+        theirs_label: "%Y",
+        lockfile_path: "Cargo.lock",
+        ours_lockfile: b"lock ours\n",
+    };
+    assert!(git.identify(&args, &[]).is_err());
+}

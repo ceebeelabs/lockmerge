@@ -102,8 +102,15 @@ impl Git {
         if let Some(d) = &self.dir {
             c.current_dir(d);
         }
-        // Reading must not touch the index.
-        c.env("GIT_OPTIONAL_LOCKS", "0").stdin(Stdio::null());
+        // Reading must not touch the index, and must never use the network:
+        // in a partial clone a missing object would be fetched lazily from
+        // the promisor remote. GIT_NO_LAZY_FETCH exists since git 2.44; for
+        // older git, GIT_ALLOW_PROTOCOL=none makes any fetch fail, which is
+        // then Unavailable.
+        c.env("GIT_OPTIONAL_LOCKS", "0")
+            .env("GIT_NO_LAZY_FETCH", "1")
+            .env("GIT_ALLOW_PROTOCOL", "none")
+            .stdin(Stdio::null());
         c
     }
 
