@@ -58,12 +58,17 @@ decided in ADR 0010, which amends ADR 0003.
    registry or git dependent of the crate exists with the same id in that
    side; otherwise refuse (also when manifests are unavailable and a path
    package exists). A lower or newer-class version can lack a feature the
-   other side enables. If any path package (member or nonmember, at any
-   depth of path dependencies) has a `[features]` entry forwarding to the
-   changed crate (`dep/feature`, `dep?/feature` or enabling the optional
-   dependency), the change is refused unless the chosen version stays in the
-   same compatibility class as base's; the chain is not proven (wrapper
-   `legacy = ["rand/min_const_gen"]` with rand 0.8 to 0.9 is refused).
+   other side enables. A version change of a registry or git crate across
+   semver compatibility classes (rand 0.8.x to 0.9.x) is refused if the other
+   side changed any feature selection in any path manifest between base and
+   that side (any `[features]` entry, or any dependency's `features`,
+   `default-features` or `optional` key, in any member or nonmember path
+   package at any depth), and also when the manifests needed to check this
+   are unavailable with a path package present. Forwarding chains are not
+   proven: wrapper `legacy = ["rand/min_const_gen"]` and `legacy =
+   ["bridge/legacy"]` enabled on one side with rand 0.8 to 0.9 on the other
+   are refused; the upgrade is accepted when the other side changed no feature
+   selection.
    D, refuse any chosen registry or git version lower than its version in
    base: a lower version can lack a feature the other side's manifest enables,
    which no lockfile data can prove; M1 needs the higher version above base.

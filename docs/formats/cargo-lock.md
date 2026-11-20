@@ -132,14 +132,19 @@ with the same id in S (M1 condition b), because its feature requests were
 resolved there. If manifests are unavailable and any path package exists, or S's
 manifest cannot be read: refuse. The check reaches indirect dependents because
 (i) covers every path package's declarations, not only those naming the crate.
-Forwarding: if any path package, member or nonmember path crate at any depth of
-path dependencies, has a `[features]` entry that forwards to the changed crate
-(`dep/feature`, `dep?/feature`, or `dep:dep`/an entry enabling the optional
-dependency), the version change is refused unless the chosen version stays in
-the same semver compatibility class as base's. The forwarding chain is not
-proven. Accept: wrapper has `legacy = ["rand/min_const_gen"]` and rand goes
-0.8.4 to 0.8.5. Refuse: same wrapper, ours enables `legacy` and adds an
-unrelated path edge, theirs upgrades rand 0.8 to 0.9.
+Cross-class feature selection: a version change of a registry or git crate
+across semver compatibility classes (rand 0.8.x to 0.9.x) is refused if the
+other side changed any feature selection in any path manifest between base and
+that side: any `[features]` table entry, or any dependency's `features`,
+`default-features` or `optional` key, in any path package (member or nonmember
+path crate, at any depth of path dependencies). It is also refused when the
+manifests needed to check this are unavailable (fallback mode with a path
+package present). Forwarding chains, direct or through registry crates, are not
+proven. Accept: theirs upgrades rand 0.8.5 to 0.9.0 and ours changed no feature
+selection. Refuse: wrapper has `legacy = ["rand/min_const_gen"]`, ours enables
+`legacy`, theirs upgrades rand 0.8 to 0.9 (direct forwarding); and wrapper has
+`legacy = ["bridge/legacy"]` where registry `bridge` forwards `rand/min_const_gen`,
+ours enables `legacy`, theirs moves rand 0.8.5 to 0.9.0 (bridge case).
 Accept: base rand 0.8.4 with `default-features = false`; neither side changes
 features; theirs upgrades to 0.9 and its lockfile has every dependent. Refuse:
 ours enables `min_const_gen` and theirs alone upgrades to 0.9, which lacks the
@@ -383,7 +388,7 @@ no manifest (V6's proof reads the registry index cache; without it, R15 refuses)
 | D | other side's feature change, one-sided upgrade 0.8.4 to 0.8.5 | one-sided downgrade to 0.8.3 |
 | F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
 | V6 | cache present, both added crates links-free; or only one side adds a crate | shared `links` (`libsqlite3-sys` and `sqlite3-src`); checksum mismatch; cache absent; unknown cache format |
-| C | upgrade across a class with unchanged feature declarations; forwarding entry with a same-class bump | other side enables a feature the new class lacks; wrapper `legacy = ["rand/min_const_gen"]` with rand 0.8 to 0.9; manifests unavailable |
+| C | cross-class upgrade when the other side changed no feature selection | other side enables a feature the new class lacks; direct forwarding (`legacy = ["rand/min_const_gen"]`) and bridge forwarding (`legacy = ["bridge/legacy"]`) with rand 0.8 to 0.9; manifests unavailable |
 | B1 | one-sided serde bump; other side adds a crate to another member | other side pins `=1.0.100` in a manifest only |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 
