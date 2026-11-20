@@ -1,6 +1,6 @@
 # 04. Backlog
 
-A seed backlog of 28 entries, as the charter asks. Each has a short
+A seed backlog of 33 entries, as the charter asks. Each has a short
 description, acceptance criteria tied to tests or the benchmark, dependencies
 and a size (S, M or L). Entries 1 to 9 are already filed as issues; their
 title, dependencies and size come from the issues, and their scope is not
@@ -91,20 +91,27 @@ all and at least 30 agent-style cases are committed unchanged; the first
 
 ## To file
 
-### 10. L3 audit job: scheduled benchmark against fresh public history (to file; [#23](https://github.com/ceebeelabs/lockmerge/issues/23))
+### 10. L3 audit job: real Cargo on every resolved-unverified result (to file; [#23](https://github.com/ceebeelabs/lockmerge/issues/23), [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
 
-Size M. Depends on: 5 (lockmerge-bench), 9 (corpus).
-A scheduled, network-using job that replays recent public merges the pinned
-corpus does not contain, so drift from real repositories shows up.
-Acceptance: the job runs on a schedule in CI, reports wrong merges as
-failures, and never changes fixtures by itself.
+Size L. Depends on: 5 (lockmerge-bench), 9 (corpus).
+The scheduled, networked L3 audit of `docs/02-oracle.md` section 4: real Cargo
+checks each merged lockfile against the manifests of the merged tree, for
+every `resolved-unverified` result. It must rebuild enough project files for
+Cargo (restored source trees from the original commits, or recorded target
+stubs, since manifests omit implicitly discovered targets) and list cases
+whose manifests do not merge cleanly as unaudited for the owner to review.
+Acceptance: a Cargo failure on a correctly prepared tree is reported as
+`resolved-wrong`; a preparation failure is `audit-prep-failed` and never a
+wrong merge; unaudited results count against `max_unverified`.
 
-### 11. Measure rule C in the benchmark (to file; [#25](https://github.com/ceebeelabs/lockmerge/issues/25))
+### 11. Measure the cost of rule C on both corpora (to file; [#25](https://github.com/ceebeelabs/lockmerge/issues/25))
 
 Size S. Depends on: 7 (M1 to M3 rules), 9 (corpus).
-Report rule C's applied count and its cases separately from M1 to M3.
-Acceptance: the per-rule table shows C with its own count; the measured rate
-with and without C is printed side by side.
+Count rule C refusals under their own reason code on the real and the
+agent-style corpus. If C blocks the 60% or 90% target, propose a narrower
+proven rule as a new ADR amending ADR 0008.
+Acceptance: the per-code refusal table shows C's count on each corpus; the
+rate with and without C is printed side by side.
 
 ### 12. `lockmerge check` command (to file)
 
@@ -132,7 +139,7 @@ Acceptance: CI builds the release binary and a clean-machine install test
 runs `lockmerge install` and a merge; the README quick start is run as
 written.
 
-### 15. uv.lock format research (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
+### 15. uv.lock format research (to file)
 
 Size M. Depends on: 1 (core).
 A format document with a rule set and refusal list, like
@@ -147,11 +154,12 @@ Parser, model, writer and rules for `uv.lock`.
 Acceptance: fixtures round-trip byte for byte; each rule has an accept and a
 refuse fixture pair checked by the testkit lint.
 
-### 17. pnpm-lock.yaml format research, including the YAML library choice (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
+### 17. pnpm-lock.yaml format research, including the YAML library choice (to file; YAML choice from [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
 
 Size M. Depends on: 1 (core).
 A format document and rule set, and a decision on a span-preserving YAML
-parser (the saphyr span question in `docs/03-architecture.md`).
+parser (whether saphyr spans are byte offsets is unverified,
+`docs/03-architecture.md`).
 Acceptance: the owner accepts the document and the library ADR; the parser's
 license and tree size are stated.
 
@@ -169,54 +177,56 @@ Extract real `uv.lock` conflicts under the ADR 0005 and 0007 layout.
 Acceptance: the corpus is committed unchanged with sources noted, and a
 baseline is set.
 
-### 20. pnpm corpus (to file)
+### 20. pnpm corpus (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
 
 Size M. Depends on: 18 (pnpm crate), 5 (lockmerge-bench). Owner only.
 Extract real `pnpm-lock.yaml` conflicts under the same layout.
 Acceptance: as entry 19.
 
-### 21. Fuzz the parse and engine paths (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26))
+### 21. Fuzz the parse and engine paths (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
 
 Size M. Depends on: 6 (cargo base rules).
 Fuzz parsers and the engine against the zero-wrong-merge gate.
 Acceptance: a fuzz target runs in CI for a fixed time and finds no panic,
 wrong merge or output that fails to re-parse; found inputs become fixtures.
 
-### 22. Server-side merge fallback workflow (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
+### 22. Server-side merge fallback workflow (to file; ADR 0004)
 
 Size M. Depends on: 12 (`lockmerge check`).
 An example CI job for hosted merges (ADR 0004) that runs `lockmerge check`.
 Acceptance: the example runs in a test repository and fails on a wrong
 lockfile.
 
-### 23. Check the Cargo behaviors marked unverified (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
+### 23. Check the Cargo behaviors marked unverified (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26))
 
 Size S. Depends on: 6 (cargo base rules). Owner only.
-Run Cargo owner-side to confirm points the docs mark unverified, such as
-version upgrade on rewrite (`docs/formats/cargo-lock.md` section 2).
+Run Cargo owner-side to confirm points the docs mark unverified: version
+upgrade on rewrite (`docs/formats/cargo-lock.md` section 2), the 0.x
+unification rule and the source sort order; also add line numbers to the
+cargo and git source links.
 Acceptance: each point is confirmed or corrected in the document, and a
 fixture or test is added where a rule depends on it.
 
-### 24. Shared span-splicing helper in core (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26))
+### 24. Shared span-splicing helper in core (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
 
 Size M. Depends on: 6 (cargo crate), 16 or 18 (a second format).
 Extract byte-exact splicing once two formats need it.
 Acceptance: both formats use it with unchanged round-trip and benchmark
 results.
 
-### 25. Pipeline helper for the keyed-packages shape (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26))
+### 25. Pipeline helper for the keyed-packages shape (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
 
 Size S. Depends on: 6 (cargo crate), 16 or 18 (a second format).
 A shared helper for formats whose lockfile is a keyed list of packages.
 Acceptance: formats using it keep identical fixture and benchmark results.
 
-### 26. Opt-in cargo validation mode (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
+### 26. Opt-in cargo validation mode, ADR 0009 (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26), [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
 
-Size M. Depends on: 7 (M1 to M3 rules).
-An opt-in mode that runs Cargo offline on the merged result, as in ADR 0009;
-never on by default.
-Acceptance: tests show a result Cargo rejects is refused when the mode is
-on, and behavior is unchanged when it is off.
+Size M. Depends on: 7 (M1 to M3 rules); needs a charter change first.
+An opt-in mode that runs Cargo offline on the merged result; never on by
+default.
+Acceptance: the owner amends the charter; tests show a result Cargo rejects
+is refused when the mode is on, and behavior is unchanged when it is off.
 
 ### 27. Machine-readable CLI report (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
 
@@ -225,7 +235,7 @@ Output the `Report` as JSON for CI.
 Acceptance: a test checks the fields for a merge and for a refusal with its
 code.
 
-### 28. Format research for the remaining formats (to file; [#28](https://github.com/ceebeelabs/lockmerge/issues/28))
+### 28. Format research for the remaining formats (to file)
 
 Size L. Depends on: 15 and 17 (the first two researched formats).
 Research documents for `package-lock.json`, `go.sum`, `yarn.lock`,
@@ -233,3 +243,44 @@ Research documents for `package-lock.json`, `go.sum`, `yarn.lock`,
 filing.
 Acceptance: each document has a rule set and a refusal list, and the owner
 accepts it before any crate work starts.
+
+### 29. `lockmerge resolve`: a second step (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26))
+
+Size L. Depends on: 7 (M1 to M3 rules); needs a charter change first.
+A later extra step for conflicts the driver refuses; the charter currently
+puts re-running a resolver out of scope for v1.
+Acceptance: the owner decides the scope and amends the charter; then a design
+document is accepted before any code.
+
+### 30. Cargo.lock version 5 support (to file; [#26](https://github.com/ceebeelabs/lockmerge/issues/26))
+
+Size M. Depends on: 6 (cargo base rules).
+Add version 5 when Cargo stabilizes it; until then it is refused (ADR 0008
+decision 1).
+Acceptance: the format document is updated from Cargo's stable behavior, and
+each changed rule has an accept and a refuse fixture pair.
+
+### 31. Recover squash-merged cases from `refs/pull/*/head` (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
+
+Size M. Depends on: 5 (lockmerge-bench). Owner only.
+Fetch pull request refs in `extract` so squash-merged conflicts, which have no
+merge commit, can become cases.
+Acceptance: `extract` is tested on a small temporary repository with a
+squash-merged pull request ref.
+
+### 32. Replay rebase and cherry-pick in the harness (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
+
+Size M. Depends on: 5 (lockmerge-bench), 3 (lockmerge-env).
+Replay cases with `git rebase` and `git cherry-pick` as well as `git merge`,
+including the unprobed revert, `rebase --apply` and stash paths, which fall
+back (the `%S`, `%X` and `%Y` label shapes are not a stable git API).
+Acceptance: the harness reports each operation separately and a case that
+merges under one operation but differs under another is flagged.
+
+### 33. Mergiraf as a comparison column in the benchmark (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
+
+Size S. Depends on: 5 (lockmerge-bench). Owner only.
+Add mergiraf's result per case as a comparison column. It is GPL-3.0, so run
+it as an external tool only and copy none of its code or data (ADR 0001).
+Acceptance: the report shows the column when the tool is installed and omits
+it otherwise; no mergiraf code or data is in the repository.
