@@ -10,7 +10,7 @@ group_issue_labels = ["task-group"]
 
 [repository]
 # Required status checks; must match the CI job names.
-required_checks = ["issue link", "adr lint"]
+required_checks = ["issue link", "adr lint", "rust"]
 
 [commits]
 # Who workers commit as; every pushed commit must be by this author.
