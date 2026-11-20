@@ -56,6 +56,12 @@ it is needed, and its license. The license must be compatible with
 MIT OR Apache-2.0 (for example MIT, Apache-2.0, BSD, ISC, Zlib or
 Unicode-3.0).
 
+## Decisions
+
+Significant decisions are recorded as architecture decision records in
+[docs/adr/](docs/adr/README.md), in the pull request that makes them. The
+owner accepts or rejects each one before that pull request merges.
+
 ## Reviewing
 
 A reviewer checks, in order:

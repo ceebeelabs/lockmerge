@@ -11,3 +11,4 @@ RULES
 DELIVERABLE (your `report` result)
 - The document itself, in Markdown, ready to commit at the path your prompt names: a TL;DR first, then one section per question in the charter.
 - Owner questions: each with your recommended answer, in the `questions` result field rather than in the report text.
+- For every decision the document makes, a draft ADR after the document in the report, ready to commit: status `Proposed`, the next free number in `docs/adr/`, the format of `docs/adr/template.md`, and no status in the title.
