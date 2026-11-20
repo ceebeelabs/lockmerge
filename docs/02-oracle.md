@@ -14,7 +14,7 @@ gate in CI) and ADR 0007 (fixture layout and extraction), all Proposed. Links:
   `expected`, saved manifests, `case.toml`) in `tests/fixtures/`. The
   *agent-style* corpus is built by hand from public MIT or Apache repositories
   (section 6.3). Candidate repositories are in section 2. Targets are about 100
-  real Cargo cases, 60 uv cases, and 30 agent-style Cargo cases. No repository
+  real Cargo cases, 18 uv cases (section 6.4), and 30 agent-style Cargo cases. No repository
   of the orchestrator that drives this project, and no history from it, is ever
   benchmark data.
 - **Reachable or re-resolved.** Every case is classified at extraction. It is
@@ -447,7 +447,18 @@ saved manifests.
 4. License: read the license files at the pinned commit, write the SPDX
    expression to `case.toml`, copy the license text. A repository outside MIT,
    Apache-2.0, BSD, ISC, Zlib or Unicode-3.0 is not extracted without the
-   owner's sign-off.
+   owner's sign-off. The extractor recognizes MIT and Apache-2.0 texts. For
+   any other allowed license the owner states it as `license` in `sources.toml`;
+   if the stated license contradicts the files, the extraction stops.
+5. `INDEX.toml` is rewritten for the repository being extracted, keeping the
+   entries of other repositories: one `[[merge]]` table per merge and lockfile
+   path considered, with `repository`, `merge_commit`, `lockfile_path` and
+   `result` (`case:reachable`, `case:re-resolved` or `skipped:<reason>`). The
+   walk goes newest first and stops once `max_cases` are taken, so only the
+   merges it reached are listed. Skip reasons: `octopus`, `no-base`,
+   `multi-base`, `not-modify-modify`, `too-large`, `side-unparseable`,
+   `expected-invalid`, `duplicate-change-set` (the same set of changed ids as a
+   newer case) and `re-resolved-quota`.
 
 ### 6.2 Layout
 
@@ -468,6 +479,12 @@ tests/fixtures/
   pnpm/ ...
 ```
 
+`baseline.toml` holds integers: `min_cases`, `min_reachable`,
+`min_rate_resolved` and `min_rate_of` (the reachable rate must be at least
+`min_rate_resolved / min_rate_of`, compared exactly, so rounding cannot fail
+or pass a run), and `max_unverified`. A missing or malformed `baseline.toml`
+or `INDEX.toml` fails the gate, and so does a missing `cargo/` directory.
+
 File names are neutral (no `Cargo.lock`), so Dependabot, Renovate and Cargo
 ignore them. The real name is `lockfile_path` in `case.toml`.
 
@@ -480,8 +497,10 @@ identical blobs across sides. `manifests/` under `expected` is not needed.
 
 `case.toml` records: `repository`, `license` (SPDX), `merge_commit`, `parents`,
 `base_commit` (full SHAs), `lockfile_path`, `ours_is = "parent1"`, `kind =
-"reachable" | "re-resolved"` with the foreign-id evidence, SHA-256 of every
-file, `extractor_version`, `extracted_on`, and an optional `[waiver]`
+"reachable" | "re-resolved"` with the foreign-id evidence (`foreign_ids_count`
+and the first ten `foreign_ids`), a `[sha256]` table with the SHA-256 of every
+file (a file that is not listed fails the gate), `extractor_version`,
+`extracted_on`, and an optional `[waiver]` with `reason` and `result_sha256`
 (reachable only). Hand-reduced fixtures that workers write for unit tests live
 in `tests/fixtures/unit/` with a README naming the commit each reduces.
 
@@ -533,25 +552,49 @@ ADR 0007 records the exception.
 Measured at the default branch (section 2): `Cargo.lock` 73 to 310 KB,
 `uv.lock` 334 KB to 1.9 MB. Everything below is an estimate.
 
-| Corpus | Cases | Mean file | Raw | Packed in git |
-| --- | --- | --- | --- | --- |
-| Cargo, real | 100 (14 repos, up to 8 each) | about 150 KB | about 60 MB | about 5 to 12 MB |
-| Cargo, agent-style | 30 | about 150 KB | about 18 MB | about 1 to 3 MB |
-| uv, real | 60 (14 repos, up to 6 each) | about 500 KB | about 120 MB | about 8 to 20 MB |
+**The first estimate did not fit the budget (issue #24).** Each case stores four
+lockfiles (`base`, `ours`, `theirs`, `expected`). With 100 Cargo cases at about
+150 KB, 30 agent-style cases at about 150 KB and 60 uv cases at about 500 KB,
+the raw total was about 198 MB (the issue rounded it to 180 MB) against the
+100 MB budget. The budget is the constraint, so the corpora are sized to it,
+within ADRs 0005 to 0007 (ADR 0007 asks for caps per repository and by file
+size, and a total byte budget enforced by a test; it fixes no case counts).
+Nothing is stored deduplicated: the four files are exact bytes, and git
+deduplicates identical blobs by itself.
 
-The packed figures assume zlib shrinks lockfiles about 5x and delta packing
-removes most of the near-copies; I measured neither. Manifests add a small
-amount. The agent-style cases share a base per repository, so the base is
-stored once per repository (a `base` per case, deduplicated by git).
-To keep it small: cap cases per repository and `max_file_bytes` (300 KB Cargo,
-700 KB uv); prefer conflict cases and varied kinds; a test sums fixture bytes
-and fails over a budget (100 MB raw total, as before, plus the agent corpus);
+| Corpus | Cases | `max_file_bytes` | Mean file | Raw | Budget |
+| --- | --- | --- | --- | --- | --- |
+| Cargo, real | 100 (14 repos, up to 8 each) | 250 KB | about 120 KB | about 48 MB | 50 MB |
+| Cargo, agent-style | 30 (small lockfiles, 100 KB or less) | 150 KB | about 100 KB | about 12 MB | 15 MB |
+| uv, real | 18 (9 repos, up to 2 each) | 600 KB | about 450 KB | about 32 MB | 35 MB |
+| **Total** | | | | about 92 MB | **100 MB** |
+
+What changed against the first table: Cargo keeps its 100 cases (the v1 target
+needs at least 40 reachable conflicts, and about 40% of cases may be
+re-resolved) but takes a lower `max_file_bytes`, which skips the largest
+lockfiles (reth, deno); the agent-style corpus is built on repositories with
+small lockfiles; uv drops from 60 cases to 18, because a uv lockfile costs about
+four times a Cargo one. uv is not part of the v1 release check (section 5), and
+the 18-case corpus is a start; raising it needs a larger budget, which is the
+owner's decision. The manifests add a small amount, and the license texts less.
+
+The packed figures of the first estimate (about 15 to 35 MB in the clone)
+assumed zlib shrinks lockfiles about 5x and delta packing removes most of the
+near-copies; I measured neither, and have not re-estimated them. A lower raw
+total can only lower them.
+
+**Enforcement.** `lockmerge-bench check` sums the bytes of every file under each
+ecosystem directory and fails if one is over its budget (cargo 50 MB,
+cargo-agent 15 MB, uv 35 MB; pnpm has none until it is planned) or if the total
+is over 100 MB. The figures live in `crates/lockmerge-bench/src/gate.rs` and a
+test checks that they add up. To keep a corpus small: cap cases per repository
+and `max_file_bytes` in `sources.toml`; prefer conflict cases and varied kinds;
 never store derived files.
 
 ## 7. How CI runs it offline
 
 `cargo test -p lockmerge-bench` and `lockmerge-bench check --fixtures
-tests/fixtures` read only committed files and spawn only `git` and the
+tests/fixtures` (the `bench` CI job) read only committed files and spawn only `git` and the
 `lockmerge` binary in temp repositories. No package manager, registry or
 network. The online audit (L3) is a separate `workflow_dispatch` or nightly
 workflow, not a required check, so a registry outage cannot block merging.
