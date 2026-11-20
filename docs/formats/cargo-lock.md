@@ -111,6 +111,16 @@ through a changed indirect dependent (`wrapper` 1.1.0 on ours newly enabling
 show on one side is caught by M1 condition e where manifests exist, and in the
 fallback by refusing M1 whenever a path package exists.
 
+**D. No downgrades.** A registry or git crate whose chosen version is lower than
+its version in base is refused. A lower version can lack a feature the merged
+manifest enables on the other side (base rand 0.8.4 with `min_const_gen` enabled
+by ours, theirs alone downgrading to 0.8.3, which lacks it), and the lockfile
+and the registry metadata cannot prove otherwise. Upgrades within a semver
+class are assumed to keep features, which is **unverified**; M1 also requires H
+to be higher than base's version.
+Accept: ours enables a feature, theirs bumps 0.8.4 to 0.8.5. Refuse: same, but
+theirs downgrades to 0.8.3.
+
 **B1. Manifest agreement for version changes.** A one-sided change that moves a
 crate present in base to another version (a bump or downgrade, with the other
 side leaving it alone) is taken only if, for every path package with an edge into
@@ -208,7 +218,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - V3. Every non-path package is reachable from a path package.
 - V4. No two registry packages of the same name and source are semver-compatible (owner decision). Rests on the [resolver docs](https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility); the 0.x rule is inferred from their examples. **Unverified by running Cargo.**
 - V5. Output sorted and canonical (section 5).
-- V6. Native links. Cargo allows one package per `links` value, and `links` is in registry manifests, which are not in git. No two packages of the same name with different version or source may be in the merged set unless some single input file contains both. Otherwise refuse (R15).
+- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git, so it cannot be proven for crates with different names either. Two registry or git ids, one that only ours added (not in base) and one that only theirs added, have never been resolved together; refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
 
 ### 4.4 Cases that must be refused
 
@@ -225,15 +235,16 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R11. Prerelease versus release difference on one package; any non-semver version string.
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
-- R15. Two ids of one crate name (different version or source) in the merged set that no single input contains together (V6); for example ours adds `libgit2-sys` 0.11 to member a and theirs adds 0.12 to member b, both declaring `links = "git2"`.
+- R15. A registry or git id added only by ours and a different one added only by theirs (V6); for example ours adds `libgit2-sys` 0.11 to member a and theirs 0.12 to member b, or ours adds `libsqlite3-sys` and theirs `sqlite3-src`, both declaring the same `links`. This costs the case "two branches each add a different crate", which the 90% agent-style bar needs; see the owner question in the PR and the options in ADR 0008.
 - R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
-Neighbors that **merge** (each needs its own test): both sides add different
-crates; both add the same entry byte-identically; one side bumps and the other
+Neighbors that **merge** (each needs its own test): both sides add the same
+crates; one side adds crates and the other none; both add the same entry byte-identically; one side bumps and the other
 does not touch it; one side removes an unused crate and the other did not touch
 it; two versions of one crate that are not semver-compatible (0.6.5 and 0.7.3
-of rand) when some input already has both (V6 accept; the neighboring refusal
-is the `libgit2-sys` 0.11 and 0.12 case, R15).
+of rand) when base already has both, or when only one side adds one of them
+(V6 accept; the neighboring refusal is the `libgit2-sys` 0.11 and 0.12 case, and
+the `libsqlite3-sys` and `sqlite3-src` case, R15).
 
 ### 4.5 Reading manifests from git objects
 
@@ -323,8 +334,9 @@ no manifest. M2, the path-dependents part of M1 and B1 (for a crate with a path 
 | --- | --- | --- |
 | M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | derive enabled only on the lower side; extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
 | M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
+| D | other side's feature change, one-sided upgrade 0.8.4 to 0.8.5 | one-sided downgrade to 0.8.3 |
 | F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
-| V6 | 0.6.5 and 0.7.3 already together in base | `libgit2-sys` 0.11 and 0.12 added by different sides |
+| V6 | 0.6.5 and 0.7.3 already together in base, or only one side adds a crate | `libgit2-sys` 0.11 and 0.12, or `libsqlite3-sys` and `sqlite3-src`, added by different sides |
 | B1 | one-sided serde bump; other side adds a crate to another member | other side pins `=1.0.100` in a manifest only |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 
