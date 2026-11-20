@@ -9,3 +9,12 @@ repository.workspace = true
 publish.workspace = true
 
 [dependencies]
+
+[features]
+# Fixture runner and rule-pair lint for format crates' tests (ADR 0012, 0013).
+# Off in the release binary: no crate enables it outside dev-dependencies.
+testkit = []
+
+[dev-dependencies]
+# Turns the feature on for this crate's own tests only.
+lockmerge-core = { path = ".", features = ["testkit"] }

@@ -279,6 +279,11 @@ changing an ADR.
   `accept-*` and one `refuse-*` directory. For every `CodeDef` there is at
   least one refusal case with that code. The accept cases must name the rule in
   their `applied` list, so a case cannot pass by accident through another rule.
+  `case.toml` also carries `source` (where the bytes came from) and `path`
+  (the repository path of the file). It may list `downgrades`: a non-fatal
+  code never ends a merge, so such a code is covered by a case that lists it
+  there. In a case's `manifests/` directory, `<repo path>` holds the merged
+  manifest the fake returns and `<repo path>.conflict` makes it a conflict.
 - Unit tests of a validator or hook may sit next to the code. The pair
   fixtures are the contract.
 - The pure index functions of `lockmerge-cargo` (path, entry parsing, matching,
