@@ -23,3 +23,40 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+
+  # ADR 0010 decision 5: git does not promise its merge driver labels, so the
+  # real-git tests of lockmerge-env run on the oldest supported git and on the
+  # newest release. The oldest supported git is 2.34.1 (the git of Ubuntu
+  # 22.04 LTS); "latest" is the highest release tag that is not a release
+  # candidate, found when the job runs.
+  git-versions:
+    name: lockmerge-env on git ${{ matrix.git }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        git: ["2.34.1", "latest"]
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build git
+        run: |
+          version="${{ matrix.git }}"
+          if [ "$version" = latest ]; then
+            version=$(git ls-remote --tags --refs https://github.com/git/git 'v2.*' \
+              | sed 's|.*refs/tags/v||' | grep -v -- '-rc' | sort -V | tail -n 1)
+          fi
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libz-dev
+          git clone --quiet --depth 1 --branch "v$version" https://github.com/git/git "$RUNNER_TEMP/git-src"
+          make -C "$RUNNER_TEMP/git-src" -j"$(nproc)" prefix="$HOME/git-$version" \
+            NO_GETTEXT=1 NO_TCLTK=1 NO_CURL=1 NO_EXPAT=1 NO_PERL=1 NO_PYTHON=1 NO_OPENSSL=1 install
+          echo "$HOME/git-$version/bin" >> "$GITHUB_PATH"
+      - name: Show the git version
+        run: |
+          which git
+          git --version
+      - name: Test lockmerge-env
+        run: cargo test -p lockmerge-env
