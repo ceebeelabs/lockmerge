@@ -40,3 +40,7 @@ name = "stale"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a125e60d247a1c51ca803ccbb6f79c69f40174ed52a44c8b8cec8959c664dec6"
+
+[[package]]
+name = "tool"
+version = "0.1.0"

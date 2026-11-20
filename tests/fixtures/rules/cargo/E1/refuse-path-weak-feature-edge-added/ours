@@ -6,24 +6,22 @@ version = 4
 name = "app"
 version = "0.1.0"
 dependencies = [
- "itoa",
+ "wrapper",
 ]
 
 [[package]]
-name = "itoa"
+name = "leaf"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "742e3ae615ae8d3f265bcfa75853ad268e6d70d028010a71041febf6b91cf0d9"
-
-[[package]]
-name = "serde"
-version = "1.0.100"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c805e52587bb4f562949a5dfc5859cb316055d303bab788c9c51325a1ace3dca"
+checksum = "1d090c88ede0707850332e2bd428bf9bced6e2bdab51090e2e38db86ab7249d7"
 
 [[package]]
 name = "tool"
 version = "0.1.0"
+
+[[package]]
+name = "wrapper"
+version = "0.1.0"
 dependencies = [
- "serde",
+ "leaf",
 ]

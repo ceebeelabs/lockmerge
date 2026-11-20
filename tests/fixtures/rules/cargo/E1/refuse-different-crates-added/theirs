@@ -15,7 +15,6 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "old",
- "tracing",
 ]
 
 [[package]]
@@ -37,7 +36,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c805e52587bb4f562949a5dfc5859cb316055d303bab788c9c51325a1ace3dca"
 
 [[package]]
+name = "tool"
+version = "0.1.0"
+
+[[package]]
 name = "tracing"
 version = "0.1.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "56706d0289b908e754727965cd1fd56c75268935a8bfea3cc6522cd401ddaea2"
+
+[[package]]
+name = "y"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+]

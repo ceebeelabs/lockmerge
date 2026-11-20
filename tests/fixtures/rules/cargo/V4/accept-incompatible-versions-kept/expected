@@ -12,7 +12,6 @@ checksum = "a714031247b532f4c4c7c42d006e80fdcdb217a5db4db8663898485a5975e518"
 name = "app"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "rand 0.6.5",
  "serde",
 ]
@@ -22,7 +21,13 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "rand 0.7.3",
- "serde",
+]
+
+[[package]]
+name = "extra"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]

@@ -10,7 +10,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli"
+name = "cli2"
 version = "0.1.0"
 dependencies = [
  "wrapper",

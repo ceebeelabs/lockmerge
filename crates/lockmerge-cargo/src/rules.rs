@@ -256,15 +256,14 @@ fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
                 // wholly added or removed is not a move.
                 let moved = !b.is_empty() && !a.is_empty() && a != b;
                 // Feature coverage. Features decide which optional edges a
-                // package has, and they reach it from dependents the other side
-                // may add. So a package loses every edge of a name (a path
-                // package may be an excluded dependency whose edges follow
-                // incoming feature requests), or an existing registry or git
-                // package gains a name (weak forwarding such as `leaf?/extra`
-                // adds edges the lockfiles of both sides do not show), only with
-                // manifest proof, which this crate cannot read yet.
+                // package has and reach it from dependents the other side may
+                // add, so a package of any kind (an excluded path dependency
+                // included) that loses every edge of a name, or gains a name
+                // (weak forwarding such as `leaf?/extra` adds edges that
+                // neither lockfile shows), changes only with manifest proof,
+                // which this crate cannot read yet.
                 let dropped = !b.is_empty() && a.is_empty();
-                let gained = !id.is_path() && b.is_empty() && !a.is_empty();
+                let gained = b.is_empty() && !a.is_empty();
                 if moved || dropped || gained {
                     return Err(refusal(
                         codes::R14,
@@ -343,28 +342,10 @@ fn tie_order(models: &[&Lock; 3]) -> Result<(), Refusal> {
 }
 
 /// A conflict the engine's base rules did not settle. No rule of this crate
-/// combines two changes to one package yet, so each is refused: removal against
-/// change (R5), a path package both sides changed (R6), and anything else is
-/// left to the engine's `core.UNPROVEN`.
-pub fn decide(c: &Conflict<'_, Id, Package>) -> Verdict<Package> {
-    let facts = |c: &Conflict<'_, Id, Package>| {
-        let state = |p: Option<&Package>| match p {
-            None => "absent",
-            Some(_) => "present",
-        };
-        vec![
-            ("base", state(c.base).to_string()),
-            ("ours", state(c.ours).to_string()),
-            ("theirs", state(c.theirs).to_string()),
-        ]
-    };
-    match (c.base, c.ours, c.theirs) {
-        (Some(_), None, Some(_)) | (Some(_), Some(_), None) => {
-            Verdict::Refuse(refusal(codes::R5, c.key.to_string(), facts(c)))
-        }
-        _ if c.key.is_path() => Verdict::Refuse(refusal(codes::R6, c.key.to_string(), facts(c))),
-        _ => Verdict::NotApplicable,
-    }
+/// combines two changes to one package yet: every such change that matters is
+/// already refused by R14, and the engine refuses the rest as `core.UNPROVEN`.
+pub fn decide(_conflict: &Conflict<'_, Id, Package>) -> Verdict<Package> {
+    Verdict::NotApplicable
 }
 
 /// V2 to V5 on the merged set. Every check runs, so the report lists them all.

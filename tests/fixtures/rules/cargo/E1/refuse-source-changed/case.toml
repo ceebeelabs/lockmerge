@@ -1,4 +1,4 @@
-source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours takes itoa 1.0.0 from git instead of the registry."
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours takes itoa 1.0.0 from git instead of the registry."
 path = "Cargo.lock"
 outcome = "refused"
 code = "cargo.R12"

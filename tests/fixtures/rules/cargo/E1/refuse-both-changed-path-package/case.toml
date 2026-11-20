@@ -1,4 +1,0 @@
-source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours adds an edge from app to old; theirs adds an edge from app to cli."
-path = "Cargo.lock"
-outcome = "refused"
-code = "cargo.R6"

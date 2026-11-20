@@ -34,3 +34,7 @@ name = "serde"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ce14970a669e3b61105c0aee52bf3ff9e1ba5972c10f47a5decee95b36cae093"
+
+[[package]]
+name = "tool"
+version = "0.1.0"

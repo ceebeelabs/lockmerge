@@ -1,4 +1,4 @@
-source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Same shape, but ours changes no edge of wrapper (it drops the member tool); theirs adds cli depending on wrapper."
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Same shape, but ours changes no edge of wrapper (it drops the member tool); theirs adds the member cli2 depending on wrapper."
 path = "Cargo.lock"
 outcome = "merged"
-applied = ["cargo.E1", "core.B1", "core.B2", "core.B4", "core.B1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]
+applied = ["cargo.E1", "core.B1", "core.B3", "core.B4", "core.B1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

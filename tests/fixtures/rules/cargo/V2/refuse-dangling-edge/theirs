@@ -24,6 +24,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "742e3ae615ae8d3f265bcfa75853ad268e6d70d028010a71041febf6b91cf0d9"
 
 [[package]]
+name = "late"
+version = "0.1.0"
+dependencies = [
+ "old",
+]
+
+[[package]]
 name = "old"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -38,6 +45,3 @@ checksum = "c805e52587bb4f562949a5dfc5859cb316055d303bab788c9c51325a1ace3dca"
 [[package]]
 name = "tool"
 version = "0.1.0"
-dependencies = [
- "old",
-]

@@ -19,10 +19,10 @@ pub const R2: ReasonCode = code("R2");
 pub const R3: ReasonCode = code("R3");
 /// An edge in the merged set points at no package.
 pub const R4: ReasonCode = code("R4");
-/// A package was removed on one side and changed on the other.
-pub const R5: ReasonCode = code("R5");
-/// Both sides changed a path package.
-pub const R6: ReasonCode = code("R6");
+// R5 (removed on one side, changed on the other) and R6 (both sides changed a
+// path package) are not registered: every change they would refuse is already
+// refused earlier by R14, because the lockfile cannot show whether it is
+// safe. They come back with the manifest rules (#37).
 /// A non-path package cannot be reached from a path package.
 pub const R7: ReasonCode = code("R7");
 /// Two semver-compatible versions of a registry crate in the merged set.
@@ -122,18 +122,6 @@ pub static CODES: &[CodeDef] = &[
         BY_HAND,
     ),
     def(
-        R5,
-        "One branch removed a package the other changed",
-        "{subjects} was removed on one branch and changed on the other.",
-        BY_HAND,
-    ),
-    def(
-        R6,
-        "Both branches changed a package of this project",
-        "{subjects} is a path package that both branches changed.",
-        BY_HAND,
-    ),
-    def(
         R7,
         "A package would be left unused",
         "{subjects} cannot be reached from any package of this project.",
@@ -171,8 +159,8 @@ pub static CODES: &[CodeDef] = &[
     ),
     def(
         R14,
-        "A version change needs the manifests",
-        "{subjects} changed version on a branch; lockmerge cannot yet check Cargo.toml to prove that safe.",
+        "A change to a package's dependencies needs the manifests",
+        "{subjects} changed its version or its dependencies on a branch, for example a dependency added, dropped or moved to another version; lockmerge cannot yet check Cargo.toml to prove that safe.",
         BY_HAND,
     ),
     def(

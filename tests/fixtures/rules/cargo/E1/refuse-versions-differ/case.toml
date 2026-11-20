@@ -1,4 +1,4 @@
-source = "Hand-built reduction: a two-member workspace (app, cli) with registry crates; checksums are synthetic. Ours is a version 3 file, base and theirs are version 4."
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours is a version 3 file, base and theirs are version 4."
 path = "Cargo.lock"
 outcome = "refused"
 code = "cargo.R1"

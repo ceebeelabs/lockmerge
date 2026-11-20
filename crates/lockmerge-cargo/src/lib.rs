@@ -13,9 +13,10 @@
 //!
 //! Not part of this crate yet: the manifest rules (M1 to M3, B1, C, D, F) and
 //! the native-links proof (R15). Where those rules would decide, this crate
-//! refuses instead of guessing: a version move of a crate present in base is
-//! refused with R14, different packages (registry, git or path) added by each side with
-//! R15, and two changes to one package with R5, R6 or `core.UNPROVEN`.
+//! refuses instead of guessing: a version move of a crate present in base, or a
+//! package gaining or losing a dependency name, is refused with R14, different packages (registry, git or path) added by each side with
+//! R15, and two changes to one package with `core.UNPROVEN` (R5 and R6 come
+//! back with the manifest rules).
 //!
 //! Unchanged inputs are returned byte for byte by the engine (`core.S1`)
 //! before any parsing.
