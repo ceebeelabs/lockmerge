@@ -43,7 +43,8 @@ today. A silently wrong lockfile is the one unacceptable outcome.
 ## Research phase
 
 No implementation until this phase is done. Each part below ends in a
-document in `docs/`.
+document in `docs/`. Each document ends in the ADRs (see
+[docs/adr/](adr/README.md)) for the decisions it makes.
 
 ### A. Prior art: `docs/00-prior-art.md`
 

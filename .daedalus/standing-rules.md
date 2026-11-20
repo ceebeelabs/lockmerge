@@ -14,3 +14,4 @@ Standing rules for all work in this repository. They come before the brief.
 12. Review fixes: take every required change and the optional notes you agree with in one round. For each finding answer `fixed` or `disputed` with a reason; for each optional note `taken` or `deferred` with a reason.
 13. Once the Cargo workspace exists, run `cargo fmt --all --check`, `cargo clippy --all-targets -- -D warnings` and the tests of the crates you touched before you finish. Run cargo commands in the foreground with the shell tool's longest timeout, not in the background.
 14. Keep context lean: read the sections your brief points to, not whole documents.
+15. Write new ADRs in `docs/adr/` as `Proposed`, with the next free number and no status in the title. Add each to the index in `docs/adr/README.md`. Never set `Accepted` or `Rejected` yourself; the owner does.
