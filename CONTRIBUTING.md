@@ -22,6 +22,12 @@ will not be merged, however rare the case. When in doubt, refuse.
 
 - Every change has an issue and a pull request. Say "Fixes #N" when the PR
   completes the issue and "Part of #N" when it is one piece of it.
+- The `issue link` check fails unless the description references an open
+  issue of this repository with `Fixes #N`, `Closes #N`, `Resolves #N` or
+  `Part of #N`. A number that is a pull request, is closed, does not exist or
+  belongs to another repository does not count. To fix a failure, correct the
+  reference in the description; editing it re-runs the check. To test the
+  logic locally, run `.github/scripts/check-issue-link.sh --self-test`.
 - Fill in the pull request template: what changed and why, the commands you
   ran and their results, and anything left for later.
 - Use American English.
