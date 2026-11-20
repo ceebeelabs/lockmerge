@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours adds the member x using anyhow, theirs adds the member y using tracing."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R15"

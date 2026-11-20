@@ -1,0 +1,26 @@
+# Format crates are pure (ADR 0011): no processes, files or environment, and
+# no TOML writer (ADR 0008 decision 11, ADR 0014). Output comes from
+# `src/write.rs` only.
+disallowed-methods = [
+    { path = "std::process::Command::new", reason = "format crates are pure; spawn processes in lockmerge-env" },
+    { path = "std::process::exit", reason = "format crates are pure; exit codes belong to lockmerge-cli" },
+    { path = "std::process::abort", reason = "format crates are pure; exit codes belong to lockmerge-cli" },
+    { path = "std::fs::read", reason = "format crates are pure; read files in lockmerge-env" },
+    { path = "std::fs::read_to_string", reason = "format crates are pure; read files in lockmerge-env" },
+    { path = "std::fs::read_dir", reason = "format crates are pure; read files in lockmerge-env" },
+    { path = "std::fs::write", reason = "format crates are pure; never write files" },
+    { path = "std::fs::copy", reason = "format crates are pure; never write files" },
+    { path = "std::fs::rename", reason = "format crates are pure; never write files" },
+    { path = "std::fs::remove_file", reason = "format crates are pure; never write files" },
+    { path = "std::fs::create_dir_all", reason = "format crates are pure; never write files" },
+    { path = "std::env::var", reason = "format crates are pure; read the environment in lockmerge-env" },
+    { path = "std::env::var_os", reason = "format crates are pure; read the environment in lockmerge-env" },
+    { path = "std::env::vars", reason = "format crates are pure; read the environment in lockmerge-env" },
+    { path = "std::env::args", reason = "format crates are pure; arguments belong to lockmerge-cli" },
+    { path = "std::env::current_dir", reason = "format crates are pure" },
+]
+disallowed-types = [
+    { path = "std::process::Command", reason = "format crates are pure; spawn processes in lockmerge-env" },
+    { path = "std::fs::File", reason = "format crates are pure; read files in lockmerge-env" },
+    { path = "toml_edit::DocumentMut", reason = "parsers are read-only (ADR 0014); the writer is src/write.rs" },
+]

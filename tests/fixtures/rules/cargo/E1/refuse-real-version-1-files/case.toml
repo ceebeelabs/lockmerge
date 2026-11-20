@@ -1,0 +1,4 @@
+source = "Real: the Cargo.lock files packaged in the crates.io releases cfg-if 1.0.4 (base), cfg-if 1.0.5 (ours) and futures-core 0.3.34 (theirs). All three are version 1 files with a [metadata] table; they stand in for three versions of one file and test only the refusal. Not a real merge."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R1"

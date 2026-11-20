@@ -1,0 +1,4 @@
+source = "Hand-built: ours has the version '1.0', which is not semver."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R11"

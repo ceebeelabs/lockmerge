@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours adds the member extra with the chain a, b; theirs drops the unused member tool."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "core.B3", "core.B1", "core.B3", "core.B1", "core.B3", "core.B1", "core.B1", "core.B1", "core.B4", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

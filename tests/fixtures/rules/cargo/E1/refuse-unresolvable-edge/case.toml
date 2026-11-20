@@ -1,0 +1,4 @@
+source = "Hand-built: ours has an edge `ghost` to a package the file does not contain."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R9"
