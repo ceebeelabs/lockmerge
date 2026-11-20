@@ -51,6 +51,14 @@ decided in ADR 0010, which amends ADR 0003.
    dependency of every path package, not only the bumped crate, because
    features reach it indirectly. Otherwise refuse. Prereleases and
    different compatibility classes are refused.
+   C, every version change, one-sided or not and across compatibility
+   classes too, is taken only if, for every path package, the merged
+   manifest's declarations of external dependencies and `[features]` entries
+   naming them equal those of the side the version comes from, and every
+   registry or git dependent of the crate exists with the same id in that
+   side; otherwise refuse (also when manifests are unavailable and a path
+   package exists). A lower or newer-class version can lack a feature the
+   other side enables.
    D, refuse any chosen registry or git version lower than its version in
    base: a lower version can lack a feature the other side's manifest enables,
    which no lockfile data can prove; M1 needs the higher version above base.
@@ -81,11 +89,8 @@ decided in ADR 0010, which amends ADR 0003.
 8. Validate the merged set and refuse on failure: no duplicate ids; every edge
    resolves to exactly one package; every non-path package reachable from a
    path package; no two semver-compatible registry versions of one crate;
-   output sorted and canonical; a registry or git id added only by ours and a different one added only
-   by theirs is refused, because `links` uniqueness (one package per native
-   library, across crate names such as `libsqlite3-sys` and `sqlite3-src`) is
-   in registry manifests that are not in git (R15). Ids both sides add
-   identically, and additions by one side only, are accepted.
+   output sorted and canonical; when a registry id was added only by ours and a different one only by
+   theirs, the `links` proof of decision 15 is required (R15).
 9. The merged id set is a subset of the union of the inputs' ids; checksums
    are copied from inputs; no id is invented.
 10. Manifests come from git objects only. The merged manifest is the
@@ -106,6 +111,25 @@ decided in ADR 0010, which amends ADR 0003.
     90% on the agent-style corpus. The owner's 7 reachable cases are kept as
     a regression set with per-rule attribution.
 
+15. Native links proof (R15). For each registry id only ours added and each
+    different one only theirs added, read the id's entry from Cargo's local
+    registry index cache (`CARGO_HOME`, default `~/.cargo`,
+    `registry/index/<registry>/...`: the sparse index cache and the git
+    index), read-only and offline: never fetch, never write the cache, never
+    run Cargo. An entry counts only if name and version match and its `cksum`
+    equals the lockfile's checksum. Accept only if every registry id in the
+    merged set (those already present too) has such an entry and no two
+    packages in the merged set share a `links` value; path packages' `links`
+    come from their manifests. Refuse with R15 when the cache is absent,
+    unreadable or in a format not read exactly, an entry is missing, a
+    checksum differs, a git source id is present, or a `links` value is
+    shared. This widens ADR 0003 and ADR 0010's "manifests from git objects
+    only" for this one input (the local registry index cache). The result
+    depends on the cache's presence, but a missing cache only causes
+    refusals, never a different merge. Tests: cache present and links-free
+    (accept), shared `links` (refuse), checksum mismatch (refuse), cache
+    absent (refuse), unknown cache format (refuse).
+
 ## Considered options
 
 - Line merge plus `cargo generate-lockfile` (cargo-merge-driver): needs the
@@ -118,10 +142,10 @@ decided in ADR 0010, which amends ADR 0003.
 - Guess the other side's commit (for example by lockfile blob match):
   ambiguous when commits touch only Cargo.toml. Rejected.
 
-- Prove `links` compatibility from the local Cargo registry index cache, an
-  allowlist of known links-free crates, or `cargo metadata` (ADR 0009): each
-  would let two branches each add a crate. None is in v1; the owner decides
-  (see Consequences).
+- Refuse every pair of ids added by different sides (no proof): sound, but
+  refuses most agent-style conflicts. Replaced by decision 15.
+- An allowlist of known links-free crates, or `cargo metadata` (ADR 0009): not
+  proposed for v1.
 
 ## Consequences
 
@@ -134,10 +158,12 @@ decided in ADR 0010, which amends ADR 0003.
   target is not assured.
 - The proof is relative to the text merge of the manifests; a different later
   edit of Cargo.toml is caught by the CI check, not by the driver.
-- R15 refuses most agent-style conflicts (two branches each adding a
-  different registry crate), which the 90% agent-style bar needs. It is the
-  sound default; the owner decides whether to add one of the proofs listed
-  under Considered options.
+- Two branches each adding a different registry crate merge only when the
+  local registry index cache proves the added crates links-free. A cold or
+  absent cache (fresh CI, first merge) refuses them, so the agent-style rate
+  depends on cache warmth; the benchmark reports it with and without the cache.
+- The driver reads one input besides git objects, the local registry index
+  cache; the cache layouts must be verified against real files.
 - Open: source ordering, array formatting, the 0.x unification rule and
   whether the lockfile lists optional and dev edges are unverified.
 

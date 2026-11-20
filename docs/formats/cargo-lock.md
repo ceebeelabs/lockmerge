@@ -118,8 +118,25 @@ by ours, theirs alone downgrading to 0.8.3, which lacks it), and the lockfile
 and the registry metadata cannot prove otherwise. Upgrades within a semver
 class are assumed to keep features, which is **unverified**; M1 also requires H
 to be higher than base's version.
-Accept: ours enables a feature, theirs bumps 0.8.4 to 0.8.5. Refuse: same, but
+Accept: neither side changes a feature declaration, theirs bumps 0.8.4 to 0.8.5. Refuse: ours enables a feature and
 theirs downgrades to 0.8.3.
+
+**C. Feature coverage for every version change, across compatibility classes
+too.** A version change taken from side S, whether one-sided or not and whether
+inside a compatibility class or across one (rand 0.8.4 to 0.9), is taken only if
+(i) for every path package, the declarations of every registry and git
+dependency and every `[features]` entry naming an external crate in the merged
+manifest equal those of S's manifest of that package (M1 condition e), and
+(ii) every registry or git package with an edge into the changed crate exists
+with the same id in S (M1 condition b), because its feature requests were
+resolved there. If manifests are unavailable and any path package exists, or S's
+manifest cannot be read: refuse. The check reaches indirect dependents because
+(i) covers every path package's declarations, not only those naming the crate.
+Accept: base rand 0.8.4 with `default-features = false`; neither side changes
+features; theirs upgrades to 0.9 and its lockfile has every dependent. Refuse:
+ours enables `min_const_gen` and theirs alone upgrades to 0.9, which lacks the
+feature: the merged manifest differs from theirs in rand's features. Refuse
+also when manifests are unavailable.
 
 **B1. Manifest agreement for version changes.** A one-sided change that moves a
 crate present in base to another version (a bump or downgrade, with the other
@@ -218,7 +235,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - V3. Every non-path package is reachable from a path package.
 - V4. No two registry packages of the same name and source are semver-compatible (owner decision). Rests on the [resolver docs](https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility); the 0.x rule is inferred from their examples. **Unverified by running Cargo.**
 - V5. Output sorted and canonical (section 5).
-- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git, so it cannot be proven for crates with different names either. Two registry or git ids, one that only ours added (not in base) and one that only theirs added, have never been resolved together; refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
+- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git. When one registry id was added only by ours (not in base) and a different one only by theirs, they have never been resolved together, so the merge needs the `links` proof of 4.5 ("Registry index cache"): every registry id in the merged set has an index entry matching name, version and checksum, and no two packages share a `links` value. Without the proof: refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
 
 ### 4.4 Cases that must be refused
 
@@ -235,7 +252,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R11. Prerelease versus release difference on one package; any non-semver version string.
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
-- R15. A registry or git id added only by ours and a different one added only by theirs (V6); for example ours adds `libgit2-sys` 0.11 to member a and theirs 0.12 to member b, or ours adds `libsqlite3-sys` and theirs `sqlite3-src`, both declaring the same `links`. This costs the case "two branches each add a different crate", which the 90% agent-style bar needs; see the owner question in the PR and the options in ADR 0008.
+- R15. A registry id added only by ours and a different one added only by theirs, and the `links` proof (4.5) fails: the cache is absent, unreadable or in a format we cannot read exactly; an id has no entry, or its checksum differs from the entry's; any git source id is in the merged set; a path package's `links` cannot be read; or two packages share a `links` value. Examples: ours adds `libgit2-sys` 0.11 and theirs 0.12 (both `links = "git2"`), or ours adds `libsqlite3-sys` and theirs `sqlite3-src` (both `links = "sqlite3"`).
 - R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
 Neighbors that **merge** (each needs its own test): both sides add the same
@@ -314,6 +331,27 @@ exactly one manifest with the same `name` and `version` (`version.workspace =
 true` resolves against `[workspace.package]`; anything unreadable is R14). All
 members must map, in all three lockfiles; else R14 for the whole file.
 
+**Registry index cache (links proof).** The one input besides git objects. Only
+when R15's trigger holds (4.4), the driver reads, read-only and offline, Cargo's
+local registry index cache under `CARGO_HOME` (default `~/.cargo`),
+`registry/index/<registry>/...`, for every registry id in the merged set. It
+never fetches, never writes the cache and never runs Cargo. It covers the
+sparse index cache (`.cache/<prefix>/<name>`, a binary file whose header and
+per-version records the code task must verify against real files) and the git
+index (JSON lines per crate), and refuses for any layout or header it cannot
+read exactly. An entry counts only if its name and version match the id **and**
+its `cksum` equals the lockfile's checksum; that makes it proof, not a guess.
+All registry directories are searched, so no registry-name hash is computed;
+disagreeing `links` between directories refuses. The entry's `links` value (or
+its absence) is read. The `links` of path packages is read from their manifests
+(4.5); git source ids refuse. The merge is accepted only if every id has a
+matching entry and no two packages share a `links` value. This widens the
+"manifests from git objects only" rule of ADR 0003 and ADR 0010 for this one
+input. The result depends on the cache being present, but a missing cache only
+causes refusals, never a different merge. Tests: cache present and links-free
+(accept); shared `links` (refuse); checksum mismatch (refuse); cache absent
+(refuse); unknown cache format (refuse).
+
 **Tools.** Shell out to the `git` executable (`rev-parse`, `cat-file`,
 `ls-tree`, `merge-file`); no git library. Parse with `toml_edit` and `semver`,
 both approved by the owner. Both are, to my knowledge, MIT OR Apache-2.0; the
@@ -325,8 +363,8 @@ Whenever the commits are not identified (4.5), or a manifest cannot be read,
 is missing on a side, or does not merge cleanly as text, run the base rules of
 4.2 only, for the whole file. M3 and the registry-dependents part of M1
 (conditions b to d, when no path package exists at all, since features can come
-from any member, see condition e) still apply, with F and V6, since they need
-no manifest. M2, the path-dependents part of M1 and B1 (for a crate with a path dependent) refuse (R14).
+from any member, see condition e) still apply, with D, F and V6, since they need
+no manifest (V6's proof reads the registry index cache; without it, R15 refuses). M2, the path-dependents part of M1 and B1 (for a crate with a path dependent) refuse (R14).
 
 ### 4.7 Accept and refuse tests (one pair per rule)
 
@@ -336,7 +374,8 @@ no manifest. M2, the path-dependents part of M1 and B1 (for a crate with a path 
 | M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
 | D | other side's feature change, one-sided upgrade 0.8.4 to 0.8.5 | one-sided downgrade to 0.8.3 |
 | F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
-| V6 | 0.6.5 and 0.7.3 already together in base, or only one side adds a crate | `libgit2-sys` 0.11 and 0.12, or `libsqlite3-sys` and `sqlite3-src`, added by different sides |
+| V6 | cache present, both added crates links-free; or only one side adds a crate | shared `links` (`libsqlite3-sys` and `sqlite3-src`); checksum mismatch; cache absent; unknown cache format |
+| C | upgrade across a class with unchanged feature declarations | other side enables a feature the new class lacks; manifests unavailable |
 | B1 | one-sided serde bump; other side adds a crate to another member | other side pins `=1.0.100` in a manifest only |
 | M3 | only dependent removed by ours, entry changed by theirs | another package still depends on it |
 
@@ -364,7 +403,7 @@ neither side and are refused by design; 7 are reachable), not measurements.
 
 - 4 of 7 is 57%, below the 60% target, and with 7 cases the target means at least 5. **M3 is required; M1 plus M2 are not enough.**
 - When manifests cannot be found, the guaranteed part is the base rules, M3 and the lockfile-only part of M1: 3 to 6 of 7 (43% to 86%). With the commits identified from `%S %X %Y` and `GITHEAD_<sha>` (4.5), the manifest rules run in the same step, so this range is the fallback case only.
-- The 90% bar for two branches each adding different crates depends on M2, because the typical case has both branches adding a dependency to the same member. Lockfile-only rules refuse it (R6). No data exists for this; it needs its own corpus.
+- The 90% bar for two branches each adding different crates depends on M2, because the typical case has both branches adding a dependency to the same member. Lockfile-only rules refuse it (R6). Even when M2 succeeds, V6/R15 refuses it unless the registry index cache proves the added crates links-free (4.5): with a cold or absent cache (a fresh CI runner, a first merge) most such merges are refused, so the agent-style rate depends on the cache being warm and must be reported with and without it. No data exists for this; it needs its own corpus.
 - Each rule shows its own row in the benchmark so the split can be measured.
 - With n = 7 and 12, the rates carry large uncertainty; one case moves a rate by 14 points.
 
