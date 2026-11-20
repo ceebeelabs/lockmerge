@@ -1,6 +1,6 @@
 # 0014. Parsers are read-only; `toml_edit` for TOML
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
