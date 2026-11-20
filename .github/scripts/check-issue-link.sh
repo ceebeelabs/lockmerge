@@ -41,9 +41,14 @@ extract_refs() {
     c=${rest:0:1}
     case $c in
       [[:alnum:]_]) ;; # "#1abc" is not a reference
-      *) echo "$((10#${BASH_REMATCH[4]}))" ;;
+      *)
+        # Keep the number a decimal string: arithmetic would wrap on overflow.
+        m=${BASH_REMATCH[4]}
+        while [ "${#m}" -gt 1 ] && [ "${m:0:1}" = 0 ]; do m=${m:1}; done
+        echo "$m"
+        ;;
     esac
-  done | sort -un
+  done | sort -u
   eval "$restore"
 }
 
@@ -126,6 +131,8 @@ self_test() {
   t "two refs, comma" 0 alice "Fixes #1, Part of #2"
   t "two refs, space" 0 alice "Fixes #1 Part of #2"
   t "two refs, second a pull request" 1 alice "Fixes #1 fixes #4"
+  t "number that overflows to 1" 1 alice "Fixes #18446744073709551617"
+  t "leading zeros" 0 alice "Fixes #001"
   t "pull request number" 1 alice "Fixes #4"
   t "closed issue" 1 alice "Fixes #3"
   t "missing number" 1 alice "Fixes #99"
