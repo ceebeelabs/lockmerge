@@ -27,7 +27,10 @@ will not be merged, however rare the case. When in doubt, refuse.
   `Part of #N`. A number that is a pull request, is closed, does not exist or
   belongs to another repository does not count. To fix a failure, correct the
   reference in the description; editing it re-runs the check. To test the
-  logic locally, run `.github/scripts/check-issue-link.sh --self-test`.
+  logic locally, run `.github/scripts/check-issue-link.sh --self-test`. The
+  check runs the default branch's copy of the workflow and script, so a change
+  to either takes effect after it merges; a separate `issue link self-test`
+  workflow runs the pull request's copy of the script with `--self-test`.
 - Fill in the pull request template: what changed and why, the commands you
   ran and their results, and anything left for later.
 - Use American English.

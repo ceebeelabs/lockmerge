@@ -1,0 +1,22 @@
+name: issue link self-test
+
+# Runs the pull request's own copy of the script against its test cases. This
+# is not the enforcing check; see issue-link.yml.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  self-test:
+    name: issue link self-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Self-test
+        run: .github/scripts/check-issue-link.sh --self-test
