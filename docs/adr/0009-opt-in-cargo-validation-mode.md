@@ -1,6 +1,6 @@
 # 0009. Opt-in cargo validation mode
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context

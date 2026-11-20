@@ -46,5 +46,5 @@ change (YYYY-MM-DD).
 | [0006](0006-false-merge-gate-in-ci.md) | False-merge gate in CI | Accepted |
 | [0007](0007-fixture-layout-and-extraction.md) | Fixture layout and extraction | Accepted |
 | [0008](0008-safe-merge-and-refusal-rules-for-cargo-lock.md) | Safe-merge and refusal rules for Cargo.lock | Accepted |
-| [0009](0009-opt-in-cargo-validation-mode.md) | Opt-in cargo validation mode (not v1) | Proposed |
+| [0009](0009-opt-in-cargo-validation-mode.md) | Opt-in cargo validation mode (not v1) | Accepted |
 | [0010](0010-how-the-driver-finds-the-commits.md) | How the driver finds the commits (amends ADR 0003) | Proposed |
