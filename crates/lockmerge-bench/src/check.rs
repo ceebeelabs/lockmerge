@@ -80,6 +80,14 @@ fn driver_dir(opts: &CheckOpts) -> Result<PathBuf, String> {
             bin.display()
         ));
     }
+    // A file that cannot run would let the shell skip it and find another
+    // `lockmerge` on PATH, or let git report the launch failure as a refusal.
+    if !is_executable(&bin) {
+        return Err(format!(
+            "the driver binary {} is not an executable file",
+            bin.display()
+        ));
+    }
     // Absolute, so the replay's PATH entry does not depend on the directory
     // of the temporary repository.
     // Only the directory is resolved: the selected basename stays, so a
@@ -90,6 +98,17 @@ fn driver_dir(opts: &CheckOpts) -> Result<PathBuf, String> {
         .filter(|p| !p.as_os_str().is_empty())
         .unwrap_or(Path::new("."));
     std::fs::canonicalize(parent).map_err(|e| format!("{}: {e}", parent.display()))
+}
+
+#[cfg(unix)]
+fn is_executable(p: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(not(unix))]
+fn is_executable(p: &Path) -> bool {
+    p.is_file()
 }
 
 fn check_index(eco_dir: &Path) -> Result<(), String> {
@@ -334,13 +353,35 @@ mod tests {
     use super::*;
     use crate::util::TempDir;
 
+    fn make_exe(p: &Path) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::write(p, "").unwrap();
+        std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    #[test]
+    fn a_non_executable_driver_is_rejected_even_with_a_competitor_on_path() {
+        let (sel, other) = (TempDir::new("sel").unwrap(), TempDir::new("other").unwrap());
+        let bin = sel.path().join("lockmerge");
+        std::fs::write(&bin, "").unwrap(); // mode 0644
+        make_exe(&other.path().join("lockmerge"));
+        let mut opts = CheckOpts::new(PathBuf::from("unused"));
+        opts.driver_bin = Some(bin);
+        // Rejected up front, whatever PATH holds: no fallback is possible.
+        let err = driver_dir(&opts).unwrap_err();
+        assert!(err.contains("not an executable file"), "{err}");
+        // The same file made executable is accepted.
+        make_exe(&opts.driver_bin.clone().unwrap());
+        assert!(driver_dir(&opts).is_ok());
+    }
+
     #[test]
     fn a_relative_driver_bin_becomes_an_absolute_directory() {
         // The replay puts this directory on PATH inside a temporary
         // repository, so a relative one would find another `lockmerge`.
         let tmp = TempDir::new("rel").unwrap();
         let bin = tmp.path().join("lockmerge");
-        std::fs::write(&bin, "").unwrap();
+        make_exe(&bin);
         let cwd = std::env::current_dir().unwrap();
         let mut rel = PathBuf::new();
         for _ in cwd.components().skip(1) {
@@ -362,8 +403,8 @@ mod tests {
         // The selected `lockmerge` is a link to a differently named file in
         // another directory, which also holds a competing `lockmerge`.
         let target = elsewhere.path().join("real-driver");
-        std::fs::write(&target, "").unwrap();
-        std::fs::write(elsewhere.path().join("lockmerge"), "").unwrap();
+        make_exe(&target);
+        make_exe(&elsewhere.path().join("lockmerge"));
         symlink(&target, here.path().join("lockmerge")).unwrap();
         let mut opts = CheckOpts::new(PathBuf::from("unused"));
         opts.driver_bin = Some(here.path().join("lockmerge"));

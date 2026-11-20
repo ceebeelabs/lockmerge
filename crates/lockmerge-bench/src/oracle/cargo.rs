@@ -319,6 +319,9 @@ fn block(heading: &str, p: &Pkg, deps: &[String]) -> Result<String, String> {
         }
         s.push_str("]\n");
     }
+    if let Some(r) = &p.replace {
+        s.push_str(&format!("replace = {}\n", quote(r)?));
+    }
     Ok(s)
 }
 
@@ -346,17 +349,6 @@ fn render(lock: &Lock, comments: &[&str]) -> Result<String, String> {
         Some(v @ (3 | 4)) => v,
         other => return Err(format!("lockfile version {other:?} is not 3 or 4")),
     };
-    if !lock.metadata.is_empty() {
-        return Err("`[metadata]` is not written by version 3 or 4".into());
-    }
-    if lock
-        .packages
-        .iter()
-        .chain(&lock.patch_unused)
-        .any(|p| p.replace.is_some())
-    {
-        return Err("`replace` is not written by version 3 or 4".into());
-    }
     if lock.patch_unused.iter().any(|p| !p.dependencies.is_empty()) {
         return Err("a `patch.unused` entry with dependencies is unverified".into());
     }
@@ -391,6 +383,20 @@ fn render(lock: &Lock, comments: &[&str]) -> Result<String, String> {
         keyed.sort();
         let deps: Vec<String> = keyed.into_iter().map(|(_, t)| t).collect();
         blocks.push(block("[[package]]", p, &deps)?);
+    }
+    // Document schema order: packages, `[metadata]`, then `[[patch.unused]]`.
+    // Key quoting and placement are unverified against Cargo; a mismatch makes
+    // the file not canonical, which is the strict direction.
+    if !lock.metadata.is_empty() {
+        let mut m = String::from("[metadata]\n");
+        for (k, v) in &lock.metadata {
+            let bare = !k.is_empty()
+                && k.chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+            let key = if bare { k.clone() } else { quote(k)? };
+            m.push_str(&format!("{key} = {}\n", quote(v)?));
+        }
+        blocks.push(m);
     }
     for p in sorted(&lock.patch_unused)? {
         blocks.push(block("[[patch.unused]]", &p, &[])?);
@@ -564,6 +570,26 @@ mod tests {
         // No header: not Cargo's output.
         let none = format!("# Licensed under MIT.\nversion = 4\n\n{GOOD}");
         assert!(CargoOracle.canonical(none.as_bytes()).is_err());
+    }
+
+    #[test]
+    fn l0_renders_metadata_and_replace() {
+        let with_meta = format!("{GOOD}\n[metadata]\ncustom = \"x\"\n");
+        CargoOracle.canonical(&lock(4, &with_meta)).unwrap();
+        // Neighbor: metadata that is not where the schema puts it.
+        let wrong = format!("[metadata]\ncustom = \"x\"\n\n{GOOD}");
+        assert!(CargoOracle.canonical(&lock(4, &wrong)).is_err());
+        let with_replace = GOOD.replace(
+            "checksum = \"aa\"\n",
+            "checksum = \"aa\"\nreplace = \"dep 1.0.0 (git+x)\"\n",
+        );
+        CargoOracle.canonical(&lock(4, &with_replace)).unwrap();
+        // Neighbor: `replace` before `checksum` is the wrong field order.
+        let swapped = GOOD.replace(
+            "checksum = \"aa\"\n",
+            "replace = \"dep 1.0.0 (git+x)\"\nchecksum = \"aa\"\n",
+        );
+        assert!(CargoOracle.canonical(&lock(4, &swapped)).is_err());
     }
 
     #[test]
