@@ -1,6 +1,6 @@
 # 0002. Scope of lockmerge v1
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-20
 
 ## Context
