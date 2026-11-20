@@ -15,7 +15,7 @@ Source: [#22](https://github.com/ceebeelabs/lockmerge/issues/22), [#23](https://
 
 Source: [#24](https://github.com/ceebeelabs/lockmerge/issues/24)
 
-- Pruning packages no longer reachable from a path package may resolve one or two more of the seven reachable prior-art cases; not yet specified as a rule.
+- Pruning is already specified as rule M3 (ADR 0008, `docs/formats/cargo-lock.md` section 4.2); what is open is implementing it and measuring how many of the seven reachable prior-art cases M1 to M3 resolve (estimated 5 to 6).
 - Cargo behavior noted as unverified by running Cargo (for example version upgrade on rewrite, `docs/formats/cargo-lock.md` section 2) needs a check before a rule depends on it.
 
 ## Benchmark
