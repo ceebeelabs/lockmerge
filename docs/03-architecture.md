@@ -155,12 +155,14 @@ pub struct RuleDef { pub id: &'static str,            // "cargo.M1"
 pub struct CodeDef { pub code: ReasonCode,
                      pub title: &'static str,         // plain language, no jargon
                      pub explain: &'static str,       // template with {placeholders}
-                     pub next_step: &'static str }    // what the user can do
+                     pub next_step: &'static str,     // what the user can do
+                     pub fatal: bool }                // whole-file refusal? (R15: true, R14: false)
 
 pub struct Inputs<'a> { pub base: &'a [u8], pub ours: &'a [u8], pub theirs: &'a [u8],
                         pub path: &'a str }
 pub trait Manifests { fn merged(&self, repo_path: &str) -> ManifestResult; }
 pub struct Context<'a> { pub manifests: &'a dyn Manifests }
+impl Context<'_> { pub fn proof(&self, rule: &'static str, facts: Vec<(&'static str, String)>) -> Proof; }
 
 /// Object-safe; what the CLI and bench see.
 pub trait Format: Sync {
@@ -168,7 +170,7 @@ pub trait Format: Sync {
     fn matches(&self, file_name: &str) -> bool;
     fn rules(&self) -> &'static [RuleDef];            // for lint and zero-filled tables
     fn codes(&self) -> &'static [CodeDef];
-    fn merge(&self, inputs: &Inputs, cx: &Context) -> Report;
+    fn merge(&self, inputs: &Inputs, cx: &Context) -> Result<Report, Error>;  // Err: internal error, exit 255
 }
 
 /// Typed contract a format implements.
@@ -182,25 +184,29 @@ pub trait Pipeline {
     fn matches(&self, file_name: &str) -> bool;
 
     fn parse(&self, role: Role, bytes: &[u8]) -> Result<Self::Model, Refusal>;       // R1, R9
-    fn envelope(&self, m: [&Self::Model; 3]) -> Result<Vec<Proof>, Refusal>;          // version, R10
+    fn envelope(&self, m: [&Self::Model; 3], cx: &Context) -> Result<Vec<Proof>, Refusal>; // version, R10
     fn units(&self, m: &Self::Model) -> std::collections::BTreeMap<Self::Key, Self::Unit>;
     /// Called only for the cases the engine's base rules do not accept.
     /// The default of every implementation must be `NotApplicable`.
-    fn decide(&self, c: &Conflict<Self::Key, Self::Unit>, cx: &Cx<Self>) -> Verdict<Self::Unit>;
-    /// Whole-set checks (ADR 0008 decision 8) and post-passes (M3, R15).
-    fn validate(&self, d: &Draft<Self::Key, Self::Unit>, cx: &Cx<Self>)
-        -> Result<Vec<Proof>, Refusal>;
+    fn decide(&self, c: &Conflict<Self::Key, Self::Unit>, cx: &Context) -> Verdict<Self::Unit>;
+    /// After the per-key pass, before `validate`: units to remove (M3), each with a Proof.
+    /// Default: none.
+    fn prune(&self, d: &Draft<Self::Key, Self::Unit>, cx: &Context) -> Vec<Removal<Self::Key>>;
+    /// Whole-set checks (ADR 0008 decision 8, including R15) on the pruned draft.
+    fn validate(&self, d: &Draft<Self::Key, Self::Unit>, cx: &Context) -> Findings;
     /// Takes only a Sealed value. Canonical writer; never a TOML/YAML library's writer.
-    fn serialize(&self, s: &Sealed<Self::Key, Self::Unit>) -> Vec<u8>;
+    fn serialize(&self, s: &Sealed<Self::Key, Self::Unit>, m: [&Self::Model; 3]) -> Vec<u8>;
 }
 
 pub enum Verdict<U> { Accept(U, Proof), Refuse(Refusal), NotApplicable }
+pub struct Removal<K> { pub key: K, pub proof: Proof }
+pub struct Findings { pub proofs: Vec<Proof>, pub refusals: Vec<Refusal> } // all failures, collected
 ```
 
 **What the engine does** (`engine::run`):
 
 1. If two inputs are byte-identical, or one equals base, return
-   `Outcome::Clean { bytes, how: Unchanged(side) }` with core rule `core.S1`.
+   `Outcome::Clean` with `How::Unchanged(side)`, under core rule `core.S1`.
    These are the unchanged inputs of ADR 0008 decision 11. They are never
    re-serialized.
 2. `parse` the three inputs and apply `envelope`.
@@ -210,26 +216,52 @@ pub enum Verdict<U> { Accept(U, Proof), Refuse(Refusal), NotApplicable }
 4. For every other case, ask `decide`. `NotApplicable` for every case ends in
    refusal `core.UNPROVEN` with the key. A format may refine this to its own
    code from `decide` (`Verdict::Refuse`, for example `cargo.R3`).
-5. Run `validate`. All failures are collected. Any one refuses.
-6. Mint `Sealed`. Only now may `serialize` be called.
+5. Ask `prune` for removals (M3). Each carries a `Proof`; the engine checks the
+   rule and that the key is in the draft, removes it and records it as applied.
+6. Run `validate` on the pruned draft. All failures are collected. Any fatal
+   one refuses.
+7. Mint `Sealed`. Only now may `serialize` be called.
 
 **How "never guess" is enforced structurally.**
 
-- `Proof`, `Draft`, `Sealed` and `Merged` have private fields. Their
-  constructors are `pub(crate)` in `core` and are reached through the engine
-  and `Verdict::Accept(_, Proof)`.
-- `Proof::new(rule, facts)` is the one place a rule enters. The engine checks
-  that `rule` is in `Pipeline::rules()`. If it is not, the result is an
-  internal error (exit 255), never a merge.
+- `Proof`, `Draft`, `Sealed` and `Clean` (the payload of `Outcome::Clean`) have
+  private fields. Their constructors are `pub(crate)` in `core`. A format gets
+  a `Proof` only from `Context::proof(rule, facts)` and hands it back in
+  `Verdict::Accept`, `Removal`, `Findings` or the `envelope` result.
+- `Context::proof` is the one place a rule enters. The engine checks that
+  `rule` is in `Pipeline::rules()` when it sees the proof. If it is not, the
+  result is an `Error` (exit 255), never a merge. The engine also refuses a
+  registry that lists a `core.*` rule, so a format cannot forge a core rule.
 - `serialize` takes `&Sealed`. So there is no code path from parsed input to
   written bytes that skips the engine, a `Proof` per unit and the validators.
-- `Report` has no public constructor that produces `Clean`.
+- `Clean` has no public constructor, so no code outside the engine can produce
+  `Outcome::Clean`.
 - Refusal is the default. Adding a rule can only add accepted cases. A
   forgotten case refuses.
 - Limits: a rule author can write a wrong rule. A format can hand-roll
   `Proof::new` with a true-sounding rule. The defenses are review, the pair
   test below, and the zero-wrong-merge gate with the benchmark's `applied`
   table, which shows which rule made a wrong merge if one happens.
+
+**Settled in issue #29.** Three gaps in the first sketch, closed without
+changing an ADR.
+
+- *Who builds a `Proof`.* Format crates cannot call a crate-private
+  constructor, yet `decide` must return a `Proof`. The constructor stays
+  crate-private (ADR 0012). `Context::proof` is the public way to get one; it
+  is a label maker with no power on its own, because the engine checks every
+  proof against `Pipeline::rules()` and `Sealed` exists only after the checks.
+  `Proof::new(rule, facts)` is therefore not public API.
+- *Removing units.* `validate` only reads the draft. M3 pruning is the explicit
+  `prune` step, run after the per-key pass and before `validate`. It returns
+  `Removal { key, proof }` values. The engine checks the rule and the key
+  (an unknown or repeated key is an `Error`) and records each as `Applied`.
+- *Which refusals are fatal.* `CodeDef::fatal` says it, per code. A fatal code
+  (R15, parse and envelope refusals, `core.UNPROVEN`) is a whole-file refusal
+  wherever it is returned. Only a non-fatal code (R14) can be a downgrade, and
+  only where the engine can continue: from `decide` (recorded, and the key is
+  then refused as `core.UNPROVEN`, because nothing merged it) or from
+  `validate`. `parse` and `envelope` refusals always end the run.
 
 **Where the accept and refuse tests live.**
 
@@ -275,10 +307,11 @@ pub struct Refusal { pub code: ReasonCode,
                      pub subjects: Vec<String>,                  // "serde 1.0.200 (registry)"
                      pub facts: Vec<(&'static str, String)> }    // ("ours", "1.0.201"), ("theirs","1.0.203")
 pub struct Applied { pub rule: &'static str, pub subjects: Vec<String> }
-pub struct Report  { pub format: FormatId,
+pub struct Report  { pub format: FormatId,                 // Outcome::Clean(Clean) | Outcome::Refused(Refusal)
                      pub outcome: Outcome,
                      pub applied: Vec<Applied>,        // one per accepted unit, by rule
-                     pub downgrades: Vec<Refusal> }    // rule-level refusals that did not end the merge (R14)
+                     pub downgrades: Vec<Refusal>,     // non-fatal refusals that did not end the merge (R14)
+                     pub also_refused: Vec<Refusal> }  // fatal refusals after the primary one
 ```
 
 **What each field is for.**
@@ -286,10 +319,13 @@ pub struct Report  { pub format: FormatId,
 - The primary refusal is the first fatal one in a deterministic order: parse,
   then envelope, then keys in sorted order, then validators. The CLI prints the
   primary one and a count of the others.
-- `downgrades` records rules refused while the base rules still merged the file
-  (R14 and R15 style). They are part of the report, and the benchmark counts
-  them, so it can show why a rule did not fire. They are not whole-file
-  refusals and do not change the exit code.
+- `downgrades` records refusals with a non-fatal code (R14 style) while the
+  merge went on. They are part of the report, and the benchmark counts them,
+  so it can show why a rule did not fire. They are not whole-file refusals and
+  do not change the exit code. R15 is not a downgrade: it is a validator
+  failure that refuses the whole file (ADR 0008 decision 8 and 15).
+- `also_refused` holds the fatal refusals after the primary one, in the same
+  fixed order, so the CLI can print their count.
 - Every `Applied` entry names a registered rule. The benchmark sums `applied`
   by `rule`, `downgrades` and `Refused` by `code`. `Format::rules()` and
   `codes()` zero-fill the rows, so the refusal breakdown shows codes that never
