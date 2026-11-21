@@ -1,6 +1,6 @@
 # 0020. Read `links` only for ids one side added, and use the identical-entry relaxation in C and M1 e (amends ADR 0008 decision 15 and ADR 0016 decision 3)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 
 ## Context
