@@ -33,7 +33,7 @@ pub enum ManifestResult {
     Conflict,
     /// The text merge conflicts, and this is its `git merge-file -p --diff3
     /// -L ours -L base -L theirs` output, markers included. A format may read
-    /// the hunks (ADR 0018); one that does not treats it as [`Self::Conflict`].
+    /// the hunks (ADR 0019); one that does not treats it as [`Self::Conflict`].
     Conflicted(Vec<u8>),
 }
 

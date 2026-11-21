@@ -1,4 +1,4 @@
-# 0018. A manifest conflict of two insertions is read as both (amends ADR 0008 decision 10 and ADR 0010)
+# 0019. A manifest conflict of two insertions is read as both (amends ADR 0008 decision 10 and ADR 0010)
 
 - Status: Proposed
 - Date: 2026-11-21

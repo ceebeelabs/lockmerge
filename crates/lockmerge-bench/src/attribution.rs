@@ -93,7 +93,7 @@ impl Manifests for SavedManifests<'_> {
             Ok(r) if r.code == Some(0) => ManifestResult::Merged(r.stdout),
             Ok(r) if matches!(r.code, Some(c) if c > 0 && c < 128) => {
                 // The same text with the base shown, for the format to read
-                // (ADR 0018).
+                // (ADR 0019).
                 let mut cmd = git_isolated(tmp.path());
                 cmd.args([
                     "merge-file",

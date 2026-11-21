@@ -628,7 +628,7 @@ fn old_git_placeholders_left_literal_are_unavailable() {
 
 /// Both branches add a different line at the end of `[dependencies]`: git's
 /// own text merge of the manifest conflicts, and the driver's source hands the
-/// format the `--diff3` text of that conflict (ADR 0018).
+/// format the `--diff3` text of that conflict (ADR 0019).
 #[test]
 fn a_manifest_conflict_carries_the_diff3_text() {
     let repo = Repo::new();

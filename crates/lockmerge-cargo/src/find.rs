@@ -28,7 +28,7 @@ pub struct Found {
     /// and the merged manifest.
     pub packages: BTreeMap<Id, (String, Manifest)>,
     /// Manifests whose text merge conflicted and was read as two insertions
-    /// (ADR 0018).
+    /// (ADR 0019).
     pub kept_both: Vec<String>,
 }
 
@@ -40,7 +40,7 @@ fn has_glob(s: &str) -> bool {
     s.contains(['*', '?', '[', ']', '{', '}'])
 }
 
-/// The merged text of `path`. A conflict that is two insertions (ADR 0018) is
+/// The merged text of `path`. A conflict that is two insertions (ADR 0019) is
 /// read as both, and the path is noted in `kept`.
 fn read_merged(
     cx: &Context<'_>,

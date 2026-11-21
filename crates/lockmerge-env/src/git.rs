@@ -360,7 +360,7 @@ impl GitManifests {
     }
 
     /// The conflicting merge again with the base shown (`--diff3`), for the
-    /// format to read (ADR 0018). Plain `Conflict` if that run does not
+    /// format to read (ADR 0019). Plain `Conflict` if that run does not
     /// conflict the same way.
     fn conflict_text(&self, dir: &Path) -> ManifestResult {
         let out = Command::new(&self.git.program)
