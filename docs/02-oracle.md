@@ -422,7 +422,7 @@ about 65%.
 requires, for the real Cargo corpus, at least 40 reachable conflicts, a
 reachable rate of at least 60% and a 95% Wilson lower bound of at least 50%;
 and for the agent-style corpus, a rate of at least 90%. For each Cargo
-corpus it also requires regressions (`git-clean-correct` cases that lockmerge
+corpus (real and agent-style) it also requires regressions (`git-clean-correct` cases that lockmerge
 refuses) to be at most 5% of `git-clean-correct` cases, compared exactly
 (ADR 0017): installing lockmerge must not make merges worse than plain git. It is run before a v1
 tag, not on every PR (early PRs are below target by design). Making it a

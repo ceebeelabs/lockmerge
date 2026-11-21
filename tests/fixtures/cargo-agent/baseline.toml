@@ -8,3 +8,7 @@ min_reachable = 59
 min_rate_resolved = 3
 min_rate_of = 32
 max_unverified = 0
+# The regression ratchet (ADR 0017): git-clean-correct cases lockmerge refuses.
+# It may only go down. The first value is the count measured on this corpus
+# (21 refusals of 27 git-clean-correct cases).
+max_regressions = 21

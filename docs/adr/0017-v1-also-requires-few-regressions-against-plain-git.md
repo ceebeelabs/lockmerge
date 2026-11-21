@@ -9,7 +9,7 @@ ADR 0005 defines the regression count: cases where plain git merges cleanly and 
 
 ## Decision
 
-1. `lockmerge-bench check --release v1` additionally requires, on each Cargo corpus, regressions to be at most 5% of `git-clean-correct` cases, compared exactly with integers (regressions times 20 is at most the `git-clean-correct` count). A corpus with no `git-clean-correct` case has no regression and passes this check.
+1. `lockmerge-bench check --release v1` additionally requires, on each Cargo corpus (`cargo` and `cargo-agent`), regressions to be at most 5% of `git-clean-correct` cases, compared exactly with integers (regressions times 20 is at most the `git-clean-correct` count). A corpus with no `git-clean-correct` case has no regression and passes this check.
 2. The per-PR gate is unchanged (zero wrong merges, zero errors, the rate ratchet), and gains a regression ratchet: `baseline.toml` has a required integer `max_regressions`, and the gate fails if the regression count exceeds it. The value may only go down; raising it needs the owner's review, like the other baseline values.
 3. The first value for a real corpus is the count measured when it is extracted, as for the rate.
 4. docs/02-oracle.md section 5 is updated to match.
@@ -22,7 +22,7 @@ ADR 0005 defines the regression count: cases where plain git merges cleanly and 
 
 ## Consequences
 
-The v1 release is blocked until lockmerge merges at least 95% of the cases plain git merges correctly. The rules that accept git-clean cases (or a fast path that defers to git's result when it is provably the same) become part of the v1 work. Existing `baseline.toml` files must add `max_regressions`. The agent-style corpus is not subject to the release check, as its cases are conflicts by construction.
+The v1 release is blocked until lockmerge merges at least 95% of the cases plain git merges correctly. The rules that accept git-clean cases (or a fast path that defers to git's result when it is provably the same) become part of the v1 work. Existing `baseline.toml` files must add `max_regressions`. The check applies to the agent-style corpus too: it is not conflicts by construction (27 of its 59 cases are git-clean-correct).
 
 ## References
 

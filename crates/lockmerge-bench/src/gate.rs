@@ -168,13 +168,7 @@ pub fn release_v1(cargo: Option<&Metrics>, agent: Option<&Metrics>) -> Vec<Strin
                     m.reachable_lower_bound() * 100.0
                 ));
             }
-            // ADR 0017: regressions / git-clean-correct <= 5%, exactly.
-            if m.regressions * 20 > m.git_clean_correct {
-                f.push(format!(
-                    "release v1: cargo has {} regressions against plain git out of {} git-clean-correct cases, more than 5%",
-                    m.regressions, m.git_clean_correct
-                ));
-            }
+            regression_check("cargo", m, &mut f);
         }
     }
     match agent {
@@ -186,9 +180,20 @@ pub fn release_v1(cargo: Option<&Metrics>, agent: Option<&Metrics>) -> Vec<Strin
                     m.s_r, m.c_r
                 ));
             }
+            regression_check("cargo-agent", m, &mut f);
         }
     }
     f
+}
+
+/// ADR 0017: regressions / git-clean-correct <= 5%, compared exactly.
+fn regression_check(corpus: &str, m: &Metrics, f: &mut Vec<String>) {
+    if m.regressions * 20 > m.git_clean_correct {
+        f.push(format!(
+            "release v1: {corpus} has {} regressions against plain git out of {} git-clean-correct cases, more than 5%",
+            m.regressions, m.git_clean_correct
+        ));
+    }
 }
 
 #[cfg(test)]
@@ -295,30 +300,20 @@ mod tests {
         assert!(!release_v1(Some(&with(68, 75)), Some(&agent)).is_empty());
         // No git-clean-correct case and no regression: nothing to fail.
         assert!(release_v1(Some(&with(0, 0)), Some(&agent)).is_empty());
-        // The agent corpus is not subject to it.
-        assert!(
-            release_v1(
-                Some(&metrics(30, 40)),
-                Some(&Metrics {
-                    regressions: 9,
-                    git_clean_correct: 9,
-                    ..metrics(9, 10)
-                })
-            )
-            .is_empty()
-        );
-    }
-
-    #[test]
-    fn release_v1_requires_sample_rate_and_lower_bound() {
-        let agent = metrics(9, 10);
-        // 60% of 40 with a lower bound below 50%.
-        let weak = metrics(24, 40);
-        let f = release_v1(Some(&weak), Some(&agent));
+        // The agent-style corpus has the same limit: 3 of 60 passes, 4 of 60 fails.
+        let agent_with = |regressions, git_clean_correct| Metrics {
+            regressions,
+            git_clean_correct,
+            ..metrics(9, 10)
+        };
+        assert!(release_v1(Some(&with(0, 60)), Some(&agent_with(3, 60))).is_empty());
+        let f = release_v1(Some(&with(0, 60)), Some(&agent_with(4, 60)));
         assert_eq!(f.len(), 1, "{f:?}");
-        assert!(f[0].contains("Wilson"));
-        // 30 of 40 = 75%: lower bound about 60%.
-        assert!(release_v1(Some(&metrics(30, 40)), Some(&agent)).is_empty());
+        assert!(f[0].contains("cargo-agent") && f[0].contains("regressions"));
+        assert!(release_v1(Some(&with(0, 60)), Some(&agent_with(0, 0))).is_empty());
+        // The failure names the corpus that caused it.
+        let f = release_v1(Some(&with(4, 60)), Some(&agent_with(4, 60)));
+        assert_eq!(f.len(), 2, "{f:?}");
         // Too few conflicts, even at 100%.
         assert!(!release_v1(Some(&metrics(10, 10)), Some(&agent)).is_empty());
         // Below 60% exactly: 23 of 40.
