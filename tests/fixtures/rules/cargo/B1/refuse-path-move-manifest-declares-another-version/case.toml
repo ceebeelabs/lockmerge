@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, lib and tool; checksums are synthetic. Ours moves the path package lib from 0.1.0 to 0.2.0 and theirs drops tool's dependency on leaf, which nothing else uses. The merged manifest of lib declares 0.3.0, not the 0.2.0 that ours' lockfile has."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

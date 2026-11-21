@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, lib and tool where app and lib inherit version.workspace = true; checksums are synthetic. Ours raises [workspace.package] version from 0.1.0 to 0.2.0, which moves the path packages app and lib; theirs drops tool's dependency on leaf."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.D", "cargo.F", "cargo.B1", "cargo.C", "cargo.D", "cargo.F", "cargo.B1", "cargo.C", "cargo.C", "core.B4", "core.B3", "core.B4", "core.B4", "core.B3", "core.B1", "core.B2", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

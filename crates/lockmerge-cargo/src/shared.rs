@@ -3,7 +3,7 @@
 //! them), the both-sides-bumped groups the envelope proved (M1) and the
 //! removals pending for the prune step (M3).
 
-use crate::find::{Found, Side, covers, covers_combined, find, read_side};
+use crate::find::{Found, Side, check_patch, covers, covers_combined, find_with, read_side};
 use crate::manifest::Unread;
 use crate::model::{Id, Lock};
 use lockmerge_core::{Context, Role};
@@ -103,11 +103,46 @@ impl Shared {
             .collect()
     }
 
+    /// The one-sided version moves of path packages (ADR 0018): per branch, a
+    /// path package of base that the branch lacks, and the one path package
+    /// of that name the branch has and base lacks. Only an unambiguous pair
+    /// (one of each by name) counts.
+    pub fn path_moves(&self, role: Role) -> Vec<(Id, Id)> {
+        let (base, side) = (&self.models[0], self.model(role));
+        let paths =
+            |m: &Lock| -> Vec<Id> { m.packages.keys().filter(|i| i.is_path()).cloned().collect() };
+        let (pb, ps) = (paths(base), paths(side));
+        let mut out = Vec::new();
+        for b in pb.iter().filter(|b| !ps.contains(b)) {
+            let removed = pb.iter().filter(|i| i.name == b.name && !ps.contains(i));
+            let added: Vec<&Id> = ps
+                .iter()
+                .filter(|i| i.name == b.name && !pb.contains(i))
+                .collect();
+            if let ([n], 1) = (added.as_slice(), removed.count()) {
+                out.push((b.clone(), (*n).clone()));
+            }
+        }
+        out
+    }
+
+    fn moved_from(&self) -> BTreeSet<Id> {
+        [Role::Ours, Role::Theirs]
+            .into_iter()
+            .flat_map(|r| self.path_moves(r))
+            .map(|(b, _)| b)
+            .collect()
+    }
+
     /// The merged manifests of every path package, or why they are not
     /// available. With no path package there is nothing to read.
     pub fn found(&self, cx: &Context<'_>) -> Result<&Found, Fail> {
         self.found
-            .get_or_init(|| find(&self.path_ids(), &self.lock_path, cx))
+            .get_or_init(|| {
+                let found = find_with(&self.path_ids(), &self.moved_from(), &self.lock_path, cx)?;
+                check_patch(&found, cx)?;
+                Ok(found)
+            })
             .as_ref()
             .map_err(|u| Fail::Manifests(u.0.clone()))
     }

@@ -49,6 +49,11 @@ pub fn requirement(
     version: &Version,
 ) -> Result<(), Fail> {
     let found = sh.found(cx)?;
+    if found.superseded.contains(package) {
+        // A path package a branch moved to another version: the new id is a
+        // dependent of its own, if it still depends on the crate.
+        return Ok(());
+    }
     let Some((_, manifest)) = found.packages.get(package) else {
         return Err(Fail::Manifests(format!("no manifest for {package}")));
     };
@@ -72,6 +77,49 @@ pub fn requirement(
                 )));
             }
             None => return Err(Fail::Manifests(format!("{name} has no requirement"))),
+        }
+    }
+    Ok(())
+}
+
+/// A path package's dependents each declare the moved path package `new` as a
+/// path dependency at its directory, with a `version` requirement (if any)
+/// that its new version satisfies (ADR 0018).
+fn path_requirement(sh: &Shared, cx: &Context<'_>, package: &Id, new: &Id) -> Result<(), Fail> {
+    let found = sh.found(cx)?;
+    if found.superseded.contains(package) {
+        return Ok(());
+    }
+    let Some((_, manifest)) = found.packages.get(package) else {
+        return Err(Fail::Manifests(format!("no manifest for {package}")));
+    };
+    let Some((new_path, _)) = found.packages.get(new) else {
+        return Err(Fail::Manifests(format!("no manifest for {new}")));
+    };
+    let decls: Vec<_> = manifest.decls_of(&new.name).collect();
+    if decls.is_empty() {
+        return Err(Fail::Manifests(format!(
+            "the manifest of {package} does not declare {}",
+            new.name
+        )));
+    }
+    for d in decls {
+        match &d.source {
+            Source::Path(dir) if *dir == crate::manifest::dir_of(new_path) => {}
+            _ => {
+                return Err(Fail::Manifests(format!(
+                    "{} is not a path dependency of {package} at the directory of {new}",
+                    new.name
+                )));
+            }
+        }
+        if let Some(req) = &d.req
+            && !admits(req, &new.version)
+        {
+            return Err(Fail::Rule(format!(
+                "{package} requires {} {req}, which {} does not satisfy",
+                new.name, new.version
+            )));
         }
     }
     Ok(())
@@ -316,7 +364,8 @@ fn one_sided_move(
         ));
     };
     let (b, n) = (*b, *n);
-    if !(b.is_registry() && n.is_registry()) {
+    let path = b.is_path() && n.is_path();
+    if !(path || (b.is_registry() && n.is_registry())) {
         return Err(refusal(
             codes::R14,
             b.name.clone(),
@@ -324,7 +373,7 @@ fn one_sided_move(
                 ("branch", side_name.to_string()),
                 (
                     "detail",
-                    "only moves of registry crates are read; the order of path or git versions is not known".into(),
+                    "only moves of registry and path crates are read; the version of a git crate comes from another repository at the locked commit, which is not read".into(),
                 ),
             ],
         ));
@@ -370,9 +419,34 @@ fn one_sided_move(
     // B1: every path package with an edge into the crate still declares a
     // requirement the new version satisfies.
     let ids: BTreeSet<&Id> = [b, n].into_iter().collect();
+    if path {
+        // The version of a path package is what its merged manifest declares:
+        // that manifest is the one of `n` and no manifest declares `b` (ADR
+        // 0018). The merged manifest is where the branch's move came from.
+        let found = sh
+            .found(cx)
+            .map_err(|f| from_fail(codes::R14, subject.clone(), &f, facts(b, n)))?;
+        if !found.packages.contains_key(n) || !found.superseded.contains(b) {
+            return Err(refusal(
+                codes::R14,
+                subject,
+                vec![
+                    ("branch", side_name.to_string()),
+                    (
+                        "detail",
+                        format!("the merged manifest does not declare exactly {n}"),
+                    ),
+                ],
+            ));
+        }
+    }
     for p in path_dependents(&sh.models, &ids) {
-        requirement(sh, cx, p, &n.name, &n.version)
-            .map_err(|f| from_fail(codes::REQUIREMENT, subject.clone(), &f, facts(b, n)))?;
+        if path {
+            path_requirement(sh, cx, p, n)
+        } else {
+            requirement(sh, cx, p, &n.name, &n.version)
+        }
+        .map_err(|f| from_fail(codes::REQUIREMENT, subject.clone(), &f, facts(b, n)))?;
     }
     proofs.push(cx.proof(B1, facts(b, n)));
 
