@@ -39,5 +39,6 @@ checksum = "ff6330b414273643bb5438ec974162bac75e85eff851a012e9b2ceaade96f3a8"
 name = "tool"
 version = "0.1.0"
 dependencies = [
+ "itoa 0.4.8",
  "serde",
 ]
