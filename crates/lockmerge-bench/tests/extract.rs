@@ -228,6 +228,7 @@ fn source(r: &Repo, max_cases: usize) -> Source {
         revision: r.head(),
         max_cases,
         max_file_bytes: 1_000_000,
+        git_clean_percent: 25,
         license: None,
     }
 }
@@ -340,13 +341,14 @@ fn the_re_resolved_quota_keeps_the_headline_denominator_from_starving() {
     let (repo, m) = scenario();
     let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
     // One case wanted: half of one is zero re-resolved cases. The newer
-    // re-resolved merge is skipped and the reachable one is taken; the walk
-    // stops there, so older merges are never considered.
+    // re-resolved merge is skipped and the reachable one is taken; the
+    // others are not chosen, and the index says so.
     extract(&source(&repo, 1), &opts(&out, &cache)).unwrap();
     let idx = index(&out);
     assert_eq!(idx[&m["re-resolved"]], "skipped:re-resolved-quota");
     assert_eq!(idx[&m["reachable"]], "case:reachable");
-    assert!(!idx.contains_key(&m["add/add"]));
+    assert_eq!(idx[&m["dup"]], "skipped:over-max-cases");
+    assert_eq!(idx[&m["add/add"]], "skipped:not-modify-modify");
     assert!(!case_dir(&out, &m["re-resolved"]).exists());
 }
 
@@ -378,7 +380,7 @@ fn survey_counts_candidates_and_writes_no_fixtures() {
     let line = survey(&clone, &src, &CargoOracle).unwrap();
     // The duplicate is still a candidate: survey does not diversify.
     assert!(
-        line.contains("3 candidates (reachable 2, re-resolved 1)"),
+        line.contains("3 candidates (reachable 2, re-resolved 1; plain git conflicts 3)"),
         "{line}"
     );
     assert!(line.contains("skipped:multi-base 1"), "{line}");
@@ -510,4 +512,152 @@ fn the_virtual_workspace_root_a_path_member_inherits_from_is_saved() {
     }
     let c = load_case("cargo", "cargo/t-repo/v", &dir).unwrap();
     assert!(c.problems.is_empty(), "{:?}", c.problems);
+}
+
+fn refs(v: &[String]) -> Vec<&str> {
+    v.iter().map(String::as_str).collect()
+}
+
+/// A history of plain-git conflicts and clean merges of the lockfile, in the
+/// order given (oldest first). Each merge adds two packages of its own, one
+/// per side. A conflict adds both at the end of the lists; a clean merge adds
+/// one at the start and one at the end, which git merges without help.
+/// Returns the repository and the merge commits by label.
+fn conflict_and_clean(kinds: &[(&'static str, bool)]) -> (Repo, BTreeMap<&'static str, String>) {
+    let r = Repo::new();
+    let mut m = BTreeMap::new();
+    r.write("LICENSE-MIT", MIT);
+    r.write("Cargo.toml", "[package]\nname = \"app\"\n");
+    r.write(
+        "crates/member/Cargo.toml",
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+    );
+    let mut cur: Vec<String> = ["p1", "p2", "p3", "p4"].map(String::from).to_vec();
+    r.write("Cargo.lock", &lock(&refs(&cur)));
+    r.commit("root");
+    r.git(&["checkout", "-q", "-B", "main"]);
+    for (label, conflict) in kinds {
+        let (a, b) = (format!("{label}a"), format!("{label}b"));
+        let mut ours = cur.clone();
+        let mut theirs = cur.clone();
+        if *conflict {
+            ours.push(a.clone());
+            theirs.push(b.clone());
+        } else {
+            ours.insert(0, a.clone());
+            theirs.push(b.clone());
+        }
+        r.git(&["checkout", "-q", "-B", "ox", "main"]);
+        r.write("Cargo.lock", &lock(&refs(&ours)));
+        r.commit("ours");
+        r.git(&["checkout", "-q", "-B", "oy", "main"]);
+        r.write("Cargo.lock", &lock(&refs(&theirs)));
+        r.commit("theirs");
+        r.git(&["checkout", "-q", "ox"]);
+        let mut both = cur.clone();
+        both.extend([a, b]);
+        m.insert(*label, r.merge("oy", &lock(&refs(&both))));
+        r.git(&["checkout", "-q", "-B", "main"]);
+        cur = if *conflict {
+            both
+        } else {
+            let mut v = vec![format!("{label}a")];
+            v.extend(cur);
+            v.push(format!("{label}b"));
+            v
+        };
+    }
+    (r, m)
+}
+
+const HISTORY: [(&str, bool); 6] = [
+    ("c1", true),
+    ("k1", false),
+    ("c2", true),
+    ("k2", false),
+    ("k3", false),
+    ("c3", true),
+];
+
+fn run_history(max_cases: usize, percent: u64) -> BTreeMap<String, String> {
+    let (repo, m) = conflict_and_clean(&HISTORY);
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    let mut src = source(&repo, max_cases);
+    src.git_clean_percent = percent;
+    extract(&src, &opts(&out, &cache)).unwrap();
+    let idx = index(&out);
+    HISTORY
+        .iter()
+        .map(|(l, _)| (l.to_string(), idx[&m[l]].clone()))
+        .collect()
+}
+
+#[test]
+fn conflicts_fill_the_cases_first_and_clean_merges_stop_at_their_share() {
+    // Four cases, 25% clean: one clean case. The newest clean merge (k3) is
+    // the one kept; the three conflicts are all kept though two are older
+    // than clean merges.
+    let r = run_history(4, 25);
+    for l in ["c1", "c2", "c3", "k3"] {
+        assert_eq!(r[l], "case:reachable", "{l}");
+    }
+    for l in ["k1", "k2"] {
+        assert_eq!(r[l], "skipped:git-clean-quota", "{l}");
+    }
+}
+
+#[test]
+fn a_share_of_zero_takes_no_clean_merge_and_a_full_share_still_prefers_conflicts() {
+    let r = run_history(4, 0);
+    for l in ["k1", "k2", "k3"] {
+        assert_eq!(r[l], "skipped:git-clean-quota", "{l}");
+    }
+    assert_eq!(r["c1"], "case:reachable");
+    // Share 100%, two cases: both are conflicts, the newest two, though
+    // every clean merge but k1 and k2 is newer than c2 or c1.
+    let r = run_history(2, 100);
+    assert_eq!(r["c3"], "case:reachable");
+    assert_eq!(r["c2"], "case:reachable");
+    assert_eq!(r["c1"], "skipped:over-max-cases");
+    for l in ["k1", "k2", "k3"] {
+        assert_eq!(r[l], "skipped:over-max-cases", "{l}");
+    }
+}
+
+#[test]
+fn the_index_records_what_plain_git_does_with_each_case() {
+    let (repo, m) = conflict_and_clean(&HISTORY);
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&source(&repo, 4), &opts(&out, &cache)).unwrap();
+    let text = fs::read_to_string(out.path().join("cargo/INDEX.toml")).unwrap();
+    let doc: DocumentMut = text.parse().unwrap();
+    let plain: BTreeMap<String, String> = doc["merge"]
+        .as_array_of_tables()
+        .unwrap()
+        .iter()
+        .filter_map(|t| {
+            Some((
+                t["merge_commit"].as_str()?.to_string(),
+                t.get("plain_git")?.as_str()?.to_string(),
+            ))
+        })
+        .collect();
+    for (label, conflict) in HISTORY {
+        let want = if conflict { "conflict" } else { "clean" };
+        assert_eq!(plain[&m[label]], want, "{label}");
+    }
+    // A merge skipped before it is a candidate has no outcome to record.
+    assert_eq!(plain.len(), HISTORY.len());
+}
+
+#[test]
+fn survey_counts_the_plain_git_conflicts() {
+    let (repo, _) = conflict_and_clean(&HISTORY);
+    let cache = TempDir::new("cache").unwrap();
+    let src = source(&repo, 4);
+    let clone = cache.path().join("t-repo.git");
+    ensure_clone(&src, &clone).unwrap();
+    let line = survey(&clone, &src, &CargoOracle).unwrap();
+    assert!(line.contains("6 candidates"), "{line}");
+    assert!(line.contains("plain git conflicts 3"), "{line}");
 }

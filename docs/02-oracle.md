@@ -458,6 +458,14 @@ saved manifests.
    the manifests (6.2). Keep a quota of reachable cases: stop on re-resolved
    ones at half of `max_cases` per repository, so the headline denominator is
    not starved.
+   **Prefer plain-git conflicts (issue #75).** Each candidate's plain-git
+   outcome is computed first, with `git merge-file` on the three blobs (the
+   content merge the replay does; the repository's own attributes do not
+   apply). `max_cases` is filled with plain-git conflicts first, newest first,
+   then with plain-git clean merges, newest first, up to `git_clean_percent`
+   of `max_cases` (an integer 0 to 100, default 25, in `sources.toml`) so the
+   regression set stays covered. The cap is strict: a repository with few
+   conflicts yields fewer cases rather than more clean ones.
 4. License: read the license files at the pinned commit, write the SPDX
    expression to `case.toml`, copy the license text. A repository outside MIT,
    Apache-2.0, BSD, ISC, Zlib or Unicode-3.0 is not extracted without the
@@ -467,12 +475,15 @@ saved manifests.
 5. `INDEX.toml` is rewritten for the repository being extracted, keeping the
    entries of other repositories: one `[[merge]]` table per merge and lockfile
    path considered, with `repository`, `merge_commit`, `lockfile_path` and
-   `result` (`case:reachable`, `case:re-resolved` or `skipped:<reason>`). The
-   walk goes newest first and stops once `max_cases` are taken, so only the
-   merges it reached are listed. Skip reasons: `octopus`, `no-base`,
+   `result` (`case:reachable`, `case:re-resolved` or `skipped:<reason>`) and,
+   for every merge that was a candidate, `plain_git` (`conflict` or `clean`).
+   Every merge of the history is listed, since the choice is made after the
+   scan. Skip reasons: `octopus`, `no-base`,
    `multi-base`, `not-modify-modify`, `too-large`, `side-unparseable`,
-   `expected-invalid`, `duplicate-change-set` (the same set of changed ids as a
-   newer case) and `re-resolved-quota`.
+   `expected-invalid`, `plain-git-error` (`git merge-file` failed rather than reported
+   conflicts), `duplicate-change-set` (the same set of changed ids as a case
+   already chosen), `re-resolved-quota`, `git-clean-quota` and
+   `over-max-cases`.
 
 ### 6.2 Layout
 
