@@ -1,0 +1,11 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+fi = ["wrapper/itoa", "wrapper/weak"]
+
+[dependencies]
+wrapper = { path = "../wrapper" }
+itoa = "1"

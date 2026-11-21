@@ -238,6 +238,34 @@ pub fn covers(
     base: &Side,
     side_names: &BTreeSet<&str>,
 ) -> Result<(), Mismatch> {
+    covers_with(found, side, base, side_names, false)
+}
+
+/// [`covers`] for a merge that combines both branches' changes to a path
+/// package (M2). The combination is compared with each branch's manifests in
+/// turn, and the other branch's added declaration may be any plain registry
+/// dependency, since by definition the branch lacked it: what is still
+/// required is that no feature table, membership, resolver, edition or feature
+/// selection differs, so no feature forwarded by one branch can reach what the
+/// other branch resolved. A plain declaration of a crate the branch's lockfile
+/// already holds can still unify default features, which no lockfile shows; that
+/// residual case is documented in ADR 0016.
+pub fn covers_combined(
+    found: &Found,
+    side: &Side,
+    base: &Side,
+    side_names: &BTreeSet<&str>,
+) -> Result<(), Mismatch> {
+    covers_with(found, side, base, side_names, true)
+}
+
+fn covers_with(
+    found: &Found,
+    side: &Side,
+    base: &Side,
+    side_names: &BTreeSet<&str>,
+    any_plain: bool,
+) -> Result<(), Mismatch> {
     let root_path = manifest_path(&found.root_dir).map_err(|e| e.0)?;
     let mut paths: BTreeMap<&str, &Manifest> = BTreeMap::new();
     paths.insert(root_path.as_str(), &found.root);
@@ -249,7 +277,7 @@ pub fn covers(
             return Err(format!("{path} is not in the side's manifests"));
         };
         let (a, b, c) = (merged.selection(), own.selection(), first.selection());
-        same_selection(path, &a, &b, &c, side_names)?;
+        same_selection(path, &a, &b, &c, side_names, any_plain)?;
     }
     Ok(())
 }
@@ -260,12 +288,10 @@ fn same_selection(
     side: &Selection,
     base: &Selection,
     side_names: &BTreeSet<&str>,
+    any_plain: bool,
 ) -> Result<(), Mismatch> {
     if merged.features != side.features {
         return Err(format!("{path}: the [features] table differs"));
-    }
-    if merged.members != side.members {
-        return Err(format!("{path}: the workspace members or exclude differ"));
     }
     if merged.members != side.members {
         return Err(format!("{path}: the workspace members or exclude differ"));
@@ -281,7 +307,7 @@ fn same_selection(
             None => {
                 let allowed = decl.is_plain()
                     && decl.source == Source::Registry
-                    && !side_names.contains(decl.package.as_str());
+                    && (any_plain || !side_names.contains(decl.package.as_str()));
                 if !allowed {
                     return Err(format!("the declaration of {} is new and selects", key(k)));
                 }

@@ -112,7 +112,7 @@ show on one side is caught by M1 condition e where manifests exist, and in the
 fallback by refusing M1 whenever a path package exists.
 
 *What "equal" means in C(i) and M1 e* (as implemented). The `[features]`
-tables, the resolver and the edition are equal, and so is every dependency
+tables, the workspace `members` and `exclude`, the resolver and the edition are equal, and so is every dependency
 declaration of the root manifest and of every path package, compared without
 its version requirement (that is B1's and M1 a's business): `package`, source,
 `features`, `default-features`, `optional`, after `workspace = true`
@@ -232,6 +232,10 @@ Path-version pair: `app` declares `lib = { path = "lib", version = ">=1.0.0" }`
 and both sides keep lib 1.0.0 (accept: edges combine). Refuse: ours bumps `lib`
 to 2.0.0, theirs pins `=1.0.0` and adds `anyhow`; the path matches but 2.0.0
 does not satisfy `=1.0.0` (condition d).
+M2 also refuses a combination that makes a normal dependency cycle through
+the package, and one whose merged `[features]`, membership or feature
+selection differs from either branch's (comparison as in C(i), except that the
+plain declaration the branch lacks may name any crate).
 Neighbor refuse cases: the merged manifest lists a fourth dependency that
 neither lockfile has an edge for (condition c); the merged manifest declares
 `anyhow = "2"` but ours resolved 1.0.80 (d); the manifest of `app` cannot be

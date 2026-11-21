@@ -126,6 +126,15 @@ fn m2(
         };
         edges.extend(chosen.into_iter().cloned());
     }
+    // No normal dependency cycle: Cargo rejects them, and the lockfile does
+    // not say which edges are dev-dependencies. A cycle through `id` in the
+    // graph of both branches' edges, with `id`'s edges as merged, is not
+    // proven valid, so it refuses (also when an input has such a cycle).
+    if let Some(via) = cycle_through(sh, id, &edges) {
+        return Err(format!(
+            "the combined edges make a dependency cycle through {via}"
+        ));
+    }
     // One resolved version per name.
     let edge_names = names(&edges);
     if edge_names.len() != edges.len() {
@@ -195,10 +204,41 @@ fn m2(
             }
         }
     }
+    // Features: the combination must be covered by each branch's resolution.
+    for role in [Role::Ours, Role::Theirs] {
+        sh.covers_combined(role, cx).map_err(|f| {
+            format!(
+                "the combined manifests are not proven to select what {} was resolved with: {}",
+                crate::parse::role_name(role),
+                f.text()
+            )
+        })?;
+    }
     Ok(Package {
         checksum: ours.checksum.clone(),
         edges,
     })
+}
+
+/// The first package of the graph of ours' and theirs' edges, with `id`'s
+/// edges replaced by `edges`, that is on a cycle through `id`.
+fn cycle_through(sh: &Shared, id: &Id, edges: &BTreeSet<Id>) -> Option<Id> {
+    let mut seen: BTreeSet<&Id> = BTreeSet::new();
+    let mut stack: Vec<&Id> = edges.iter().collect();
+    while let Some(next) = stack.pop() {
+        if next == id {
+            return Some(id.clone());
+        }
+        if !seen.insert(next) {
+            continue;
+        }
+        for m in [&sh.models[1], &sh.models[2]] {
+            if let Some(p) = m.packages.get(next) {
+                stack.extend(p.edges.iter());
+            }
+        }
+    }
+    None
 }
 
 fn to_set(ids: &BTreeSet<&Id>) -> BTreeSet<Id> {

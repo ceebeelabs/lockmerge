@@ -3,7 +3,7 @@
 //! them), the both-sides-bumped groups the envelope proved (M1) and the
 //! removals pending for the prune step (M3).
 
-use crate::find::{Found, Side, covers, find, read_side};
+use crate::find::{Found, Side, covers, covers_combined, find, read_side};
 use crate::manifest::Unread;
 use crate::model::{Id, Lock};
 use lockmerge_core::{Context, Role};
@@ -113,6 +113,15 @@ impl Shared {
     /// path package in any lockfile there is no manifest that selects
     /// features, and the check holds.
     pub fn covers(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
+        self.covers_as(role, cx, false)
+    }
+
+    /// Coverage for a merge that combines both branches' changes (M2).
+    pub fn covers_combined(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
+        self.covers_as(role, cx, true)
+    }
+
+    fn covers_as(&self, role: Role, cx: &Context<'_>, combined: bool) -> Result<(), Fail> {
         if self.path_ids().is_empty() {
             return Ok(());
         }
@@ -125,7 +134,8 @@ impl Shared {
             .keys()
             .map(|id| id.name.as_str())
             .collect();
-        covers(found, side, base, &names).map_err(Fail::Rule)
+        let check = if combined { covers_combined } else { covers };
+        check(found, side, base, &names).map_err(Fail::Rule)
     }
 
     /// Per input, the packages reachable from its path packages.

@@ -1,0 +1,11 @@
+[package]
+name = "wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+weak = ["serde?/derive"]
+
+[dependencies]
+itoa = { version = "1", optional = true, default-features = false }
+serde = { version = "1", optional = true, default-features = false }

@@ -500,3 +500,33 @@ fn the_refusals_hold_with_the_sides_swapped() {
         assert_eq!(r.code.to_string(), code, "{rule}/{name}");
     }
 }
+
+/// Both orders of a case refuse with R6 and a detail that names the reason.
+#[test]
+fn m2_refuses_cycles_and_unproven_feature_combinations_for_the_stated_reason() {
+    for (name, why) in [
+        ("refuse-dependency-cycle", "dependency cycle"),
+        ("refuse-forwarded-features-combined", "not proven to select"),
+    ] {
+        let case = load("M2", name);
+        for case in [case.swapped(), case] {
+            let report = lockmerge_cargo::format()
+                .merge(
+                    &Inputs {
+                        base: &case.base,
+                        ours: &case.ours,
+                        theirs: &case.theirs,
+                        path: &case.path,
+                    },
+                    &Context::new(&case.manifests),
+                )
+                .unwrap();
+            let Outcome::Refused(r) = &report.outcome else {
+                panic!("{name} was merged");
+            };
+            assert_eq!(r.code.to_string(), "cargo.R6", "{name}");
+            let detail: Vec<&str> = r.facts.iter().map(|(_, v)| v.as_str()).collect();
+            assert!(detail.iter().any(|d| d.contains(why)), "{name}: {detail:?}");
+        }
+    }
+}
