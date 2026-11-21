@@ -238,6 +238,7 @@ fn opts(out: &TempDir, cache: &TempDir) -> ExtractOpts {
         out: out.path().to_path_buf(),
         cache: cache.path().to_path_buf(),
         date: "2026-11-20".into(),
+        cargo_home: None,
     }
 }
 
@@ -660,4 +661,92 @@ fn survey_counts_the_plain_git_conflicts() {
     let line = survey(&clone, &src, &CargoOracle).unwrap();
     assert!(line.contains("6 candidates"), "{line}");
     assert!(line.contains("plain git conflicts 3"), "{line}");
+}
+
+/// A fake CARGO_HOME with two index directories. `pa`, `pc` and `pd` have
+/// entries (`pa` in both directories), `zz` is in no lockfile, `pb` has none.
+fn fake_cargo_home() -> TempDir {
+    let home = TempDir::new("cargo-home").unwrap();
+    let put = |dir: &str, rel: &str, bytes: &[u8]| {
+        let p = home
+            .path()
+            .join("registry/index")
+            .join(dir)
+            .join(".cache")
+            .join(rel);
+        fs::create_dir_all(p.parent().unwrap()).unwrap();
+        fs::write(p, bytes).unwrap();
+    };
+    put("idx-1", "2/pa", b"\x03\x02\0\0\0etag: 1\0pa-one\0");
+    put("idx-2", "2/pa", b"\x03\x02\0\0\0etag: 2\0pa-two\0");
+    put("idx-1", "2/pc", b"\x03\x02\0\0\0etag: 1\0pc\0\xff");
+    put("idx-1", "2/pd", b"pd");
+    put("idx-1", "2/zz", b"zz");
+    home
+}
+
+#[test]
+fn extract_saves_the_index_entries_of_the_registry_packages_byte_for_byte() {
+    let (repo, m) = scenario();
+    let home = fake_cargo_home();
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    let mut o = opts(&out, &cache);
+    o.cargo_home = Some(home.path().to_path_buf());
+    let summary = extract(&source(&repo, 10), &o).unwrap();
+    // `pb` has no entry: said, not saved.
+    assert!(summary.contains("not in the index cache"), "{summary}");
+
+    let dir = case_dir(&out, &m["reachable"]);
+    let saved = |rel: &str| fs::read(dir.join("index").join(rel)).ok();
+    assert_eq!(
+        saved("idx-1/.cache/2/pa").unwrap(),
+        b"\x03\x02\0\0\0etag: 1\0pa-one\0"
+    );
+    assert_eq!(
+        saved("idx-2/.cache/2/pa").unwrap(),
+        b"\x03\x02\0\0\0etag: 2\0pa-two\0"
+    );
+    assert_eq!(
+        saved("idx-1/.cache/2/pc").unwrap(),
+        b"\x03\x02\0\0\0etag: 1\0pc\0\xff"
+    );
+    assert_eq!(saved("idx-1/.cache/2/pd").unwrap(), b"pd");
+    // Neighbors that must not be saved: a crate of no lockfile, a crate
+    // with no entry.
+    assert!(saved("idx-1/.cache/2/zz").is_none());
+    assert!(saved("idx-1/.cache/2/pb").is_none());
+
+    // The recorded hashes cover the entries, and the case loads.
+    let c = load_case("cargo", "cargo/t-repo/x", &dir).unwrap();
+    assert!(c.problems.is_empty(), "{:?}", c.problems);
+    assert_eq!(c.index.len(), 4);
+    assert!(c.index.iter().any(|f| f.rel == "idx-1/.cache/2/pa"));
+
+    // A changed byte fails the recorded hash.
+    fs::write(dir.join("index/idx-1/.cache/2/pd"), b"pD").unwrap();
+    let c = load_case("cargo", "cargo/t-repo/x", &dir).unwrap();
+    assert!(c.problems.iter().any(|p| p.contains("idx-1/.cache/2/pd")));
+}
+
+#[test]
+fn without_a_cargo_home_no_index_is_saved() {
+    let (repo, m) = scenario();
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    let summary = extract(&source(&repo, 10), &opts(&out, &cache)).unwrap();
+    assert!(!summary.contains("registry package"), "{summary}");
+    assert!(!case_dir(&out, &m["reachable"]).join("index").exists());
+}
+
+#[test]
+fn an_empty_cargo_home_saves_nothing_and_the_case_stays_valid() {
+    let (repo, m) = scenario();
+    let home = TempDir::new("empty-home").unwrap();
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    let mut o = opts(&out, &cache);
+    o.cargo_home = Some(home.path().to_path_buf());
+    extract(&source(&repo, 10), &o).unwrap();
+    let dir = case_dir(&out, &m["reachable"]);
+    assert!(!dir.join("index").exists());
+    let c = load_case("cargo", "cargo/t-repo/x", &dir).unwrap();
+    assert!(c.problems.is_empty(), "{:?}", c.problems);
 }
