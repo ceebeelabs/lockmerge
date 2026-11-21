@@ -9,7 +9,7 @@ use crate::classify::Kind;
 use crate::oracle::{CargoOracle, Oracle, path_package_names};
 use crate::scan::{Candidate, Considered, Outcome, Selection, Source, ensure_clone, git_out, scan};
 use crate::util::sha256_hex;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml_edit::DocumentMut;
@@ -117,8 +117,11 @@ fn license(repo: &Path, src: &Source) -> Result<(String, Vec<NamedFile>), String
     Ok((expr, files))
 }
 
-/// The manifests of one side: the root manifest next to the lockfile and every
-/// `Cargo.toml` whose package is a path package of that side's lockfile.
+/// The manifests of one side: the root manifest next to the lockfile, every
+/// `Cargo.toml` whose package is a path package of that side's lockfile, and
+/// for each of those the nearest ancestor manifest that has a `[workspace]`
+/// table: a member inherits from it, and a virtual root has no package name to
+/// select it by.
 fn side_manifests(
     repo: &Path,
     commit: &str,
@@ -138,29 +141,60 @@ fn side_manifests(
     } else {
         format!("{lock_dir}/Cargo.toml")
     };
-    let mut out = Vec::new();
+    // Every manifest at the commit, parsed once. `None` if it does not parse.
+    let mut all: BTreeMap<String, (Vec<u8>, Option<DocumentMut>)> = BTreeMap::new();
     for path in listing.lines() {
         if Path::new(path).file_name().and_then(|n| n.to_str()) != Some("Cargo.toml") {
             continue;
         }
         let bytes = git_out(repo, &["cat-file", "blob", &format!("{commit}:{path}")])?;
-        let keep = path == root
-            || String::from_utf8(bytes.clone())
-                .ok()
-                .and_then(|t| t.parse::<DocumentMut>().ok())
-                .and_then(|d| {
-                    d.get("package")?
-                        .as_table_like()?
-                        .get("name")?
-                        .as_str()
-                        .map(str::to_string)
-                })
-                .is_some_and(|n| names.contains(&n));
-        if keep {
-            out.push((path.to_string(), bytes));
+        let doc = String::from_utf8(bytes.clone())
+            .ok()
+            .and_then(|t| t.parse::<DocumentMut>().ok());
+        all.insert(path.to_string(), (bytes, doc));
+    }
+    let mut keep: BTreeSet<String> = BTreeSet::new();
+    for (path, (_, doc)) in &all {
+        let named = doc
+            .as_ref()
+            .and_then(|d| {
+                d.get("package")?
+                    .as_table_like()?
+                    .get("name")?
+                    .as_str()
+                    .map(str::to_string)
+            })
+            .is_some_and(|n| names.contains(&n));
+        if path == &root || named {
+            keep.insert(path.clone());
         }
     }
-    Ok(out)
+    // The nearest ancestor with a `[workspace]` table, as cargo finds it.
+    let mut roots = BTreeSet::new();
+    for path in keep.iter().filter(|p| **p != root) {
+        let mut dir = Path::new(path).parent().and_then(Path::parent);
+        while let Some(d) = dir {
+            let candidate = if d.as_os_str().is_empty() {
+                "Cargo.toml".to_string()
+            } else {
+                format!("{}/Cargo.toml", d.to_string_lossy())
+            };
+            if all
+                .get(&candidate)
+                .and_then(|(_, doc)| doc.as_ref())
+                .is_some_and(|doc| doc.get("workspace").is_some())
+            {
+                roots.insert(candidate);
+                break;
+            }
+            dir = d.parent();
+        }
+    }
+    keep.extend(roots);
+    Ok(keep
+        .into_iter()
+        .filter_map(|p| all.remove(&p).map(|(bytes, _)| (p, bytes)))
+        .collect())
 }
 
 fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
