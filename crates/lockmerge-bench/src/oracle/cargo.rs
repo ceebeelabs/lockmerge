@@ -425,9 +425,9 @@ pub fn path_package_names(bytes: &[u8]) -> Result<BTreeSet<String>, String> {
         .collect())
 }
 
-/// The names of the registry packages of a lockfile: those whose source is a
-/// `registry+` or `sparse+` URL. Git sources and path packages are not here.
-pub fn registry_package_names(bytes: &[u8]) -> Result<BTreeSet<String>, String> {
+/// The `(name, version)` of every registry package of a lockfile (those whose
+/// source is a `registry+` or `sparse+` URL; git sources and path packages are not here).
+pub fn registry_packages(bytes: &[u8]) -> Result<BTreeSet<(String, String)>, String> {
     Ok(parse(bytes)?
         .packages
         .into_iter()
@@ -436,7 +436,7 @@ pub fn registry_package_names(bytes: &[u8]) -> Result<BTreeSet<String>, String> 
                 .as_deref()
                 .is_some_and(|s| s.starts_with("registry+") || s.starts_with("sparse+"))
         })
-        .map(|p| p.name)
+        .map(|p| (p.name, p.version))
         .collect())
 }
 
