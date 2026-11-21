@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and cli with registry crates serde (which depends on dd), itoa and leaf; checksums are synthetic. Theirs adds app's dependency on serde and ours adds leaf; ours' serde has an extra edge to leaf that theirs' lacks, so the entry in the lockfile of the branch that added the declaration differs from the other's."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.FEATURES"

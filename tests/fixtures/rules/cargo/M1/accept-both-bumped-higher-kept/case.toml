@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Base serde 1.0.100; ours moves it to 1.0.101 and theirs to 1.0.102. cli and the registry crate wrapper depend on serde, wrapper exists on both sides, and cli says serde = '1'."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "core.B1", "cargo.M1", "core.B1", "core.B1", "core.B3", "core.B3", "core.B1", "cargo.M1", "cargo.M1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

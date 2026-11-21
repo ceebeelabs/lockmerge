@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. app depends on serde and on the path crate lib with version = '>=1.0.0'. Ours adds an edge to itoa and theirs one to leaf, both crates cli already uses; the merged manifest declares both."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.M2", "core.B1", "core.B1", "core.B1", "core.B1", "core.B1", "core.B1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

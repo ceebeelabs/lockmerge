@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. Theirs tightens the requirement on the path crate lib to '=2.0.0' while lib is 1.0.0; the path matches but the version does not."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

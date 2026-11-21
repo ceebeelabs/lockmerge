@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours moves serde from 1.0.100 down to 1.0.99, which the requirement '1' admits; theirs drops tool's dependency on leaf. The manifests cover everything, so only the downgrade rule refuses."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.DOWNGRADE"

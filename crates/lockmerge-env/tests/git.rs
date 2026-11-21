@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use lockmerge_core::Role;
 use lockmerge_env::{DriverArgs, Git, GitManifests, Identified, ManifestResult, Manifests};
 
 static N: AtomicU64 = AtomicU64::new(0);
@@ -489,6 +490,47 @@ fn the_merged_manifest_ignores_the_working_tree() {
     assert_eq!(m.merged("Cargo.toml"), expected);
     f.repo.write("Cargo.toml", "garbage in the working tree\n");
     assert_eq!(m.merged("Cargo.toml"), expected);
+}
+
+#[test]
+fn a_side_manifest_is_the_blob_of_that_commit() {
+    let f = diverged();
+    let m = GitManifests::with_commits(
+        Git::new().in_dir(&f.repo.dir),
+        Identified {
+            base: f.base.clone(),
+            ours: f.ours.clone(),
+            theirs: f.theirs.clone(),
+        },
+    );
+    assert_eq!(
+        m.side(Role::Ours, "Cargo.toml"),
+        Ok(manifest("ours", "z").into_bytes())
+    );
+    assert_eq!(
+        m.side(Role::Theirs, "Cargo.toml"),
+        Ok(manifest("a", "theirs").into_bytes())
+    );
+    assert_eq!(
+        m.side(Role::Base, "Cargo.toml"),
+        Ok(manifest("a", "z").into_bytes())
+    );
+    // The working tree is not read; a missing path and a path outside the
+    // repository are errors, never empty manifests.
+    f.repo.write("Cargo.toml", "garbage in the working tree\n");
+    assert!(m.side(Role::Ours, "Cargo.toml").is_ok());
+    assert!(m.side(Role::Ours, "missing/Cargo.toml").is_err());
+    assert!(m.side(Role::Ours, "../Cargo.toml").is_err());
+    // Without identified commits there is nothing to read.
+    let args = DriverArgs {
+        base_label: "base",
+        ours_label: "ours",
+        theirs_label: "theirs",
+        lockfile_path: "Cargo.lock",
+        ours_lockfile: b"lock ours\n",
+    };
+    let none = Git::new().in_dir(&f.repo.dir).manifests(&args, &[]);
+    assert!(none.side(Role::Ours, "Cargo.toml").is_err());
 }
 
 #[test]

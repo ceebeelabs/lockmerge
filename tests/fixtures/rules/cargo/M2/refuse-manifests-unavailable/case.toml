@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. The same edges with no manifests available: the base rules refuse a package both branches changed."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

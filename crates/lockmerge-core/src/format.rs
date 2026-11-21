@@ -37,6 +37,14 @@ pub enum ManifestResult {
 /// fakes in tests.
 pub trait Manifests {
     fn merged(&self, repo_path: &str) -> ManifestResult;
+
+    /// The manifest at `repo_path` as one input has it, unmerged. A format
+    /// uses it to ask whether the merged manifest still says what the side's
+    /// lockfile was resolved with. The default provides none, which is the
+    /// safe direction: the format then refuses what needs it.
+    fn side(&self, _role: Role, _repo_path: &str) -> Result<Vec<u8>, Why> {
+        Err(Why("side manifests are not provided".to_string()))
+    }
 }
 
 /// What the engine hands to a format besides the inputs.

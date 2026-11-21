@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool with registry crates; checksums are synthetic. Same shape as the accept case with no manifests available: another member's feature selection cannot be excluded."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

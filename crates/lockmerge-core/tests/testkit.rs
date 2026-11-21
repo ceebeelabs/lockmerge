@@ -10,7 +10,7 @@ mod common;
 
 use common::Toy;
 use lockmerge_core::testkit::{self, Case, Expect, FakeManifests};
-use lockmerge_core::{ManifestResult, Manifests};
+use lockmerge_core::{ManifestResult, Manifests, Role};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -253,6 +253,36 @@ fn fake_manifests_read_merged_conflict_and_unavailable() {
     ));
     let one = FakeManifests::new().with("x", ManifestResult::Conflict);
     assert_eq!(one.merged("x"), ManifestResult::Conflict);
+}
+
+#[test]
+fn fake_manifests_have_sides_that_can_be_exchanged() {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("kit-sides");
+    let _ = fs::remove_dir_all(&root);
+    for side in ["base", "ours", "theirs"] {
+        fs::create_dir_all(root.join(format!("sides/{side}/sub"))).unwrap();
+        fs::write(
+            root.join(format!("sides/{side}/sub/Cargo.toml")),
+            side.as_bytes(),
+        )
+        .unwrap();
+    }
+    let m = FakeManifests::from_case_dir(&root).unwrap();
+    assert_eq!(m.side(Role::Ours, "sub/Cargo.toml"), Ok(b"ours".to_vec()));
+    assert_eq!(m.side(Role::Base, "sub/Cargo.toml"), Ok(b"base".to_vec()));
+    assert!(m.side(Role::Ours, "other/Cargo.toml").is_err());
+    let s = m.swapped();
+    assert_eq!(s.side(Role::Ours, "sub/Cargo.toml"), Ok(b"theirs".to_vec()));
+    assert_eq!(s.side(Role::Theirs, "sub/Cargo.toml"), Ok(b"ours".to_vec()));
+    assert_eq!(s.side(Role::Base, "sub/Cargo.toml"), Ok(b"base".to_vec()));
+    // A fake that gives no side manifests is the trait's default: an error.
+    struct Bare;
+    impl Manifests for Bare {
+        fn merged(&self, _: &str) -> ManifestResult {
+            ManifestResult::Conflict
+        }
+    }
+    assert!(Bare.side(Role::Ours, "x").is_err());
 }
 
 #[test]

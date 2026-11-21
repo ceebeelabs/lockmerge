@@ -5,8 +5,8 @@ A git merge driver that merges lockfiles by what they mean, not by their lines.
 > **Status: pre-alpha.** The `lockmerge` binary exists, but nothing is
 > released or packaged yet; build it from this repository. The workspace has
 > `lockmerge-core` (the three-way engine, proofs and refusal reports),
-> `lockmerge-cargo` (the `Cargo.lock` parser, resolved model, base rules and
-> canonical writer), `lockmerge-env` (commit identification and manifests from
+> `lockmerge-cargo` (the `Cargo.lock` parser, resolved model, base rules,
+> manifest-assisted rules and canonical writer), `lockmerge-env` (commit identification and manifests from
 > git) and `lockmerge-cli` (the `lockmerge` binary).
 > The plan is in [docs/charter.md](docs/charter.md), the research is in
 > [docs/](docs/), and later work and known risks are listed in

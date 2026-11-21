@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours removes cli's only dependency on old, so old is gone; theirs changes old by giving it a new dependency, fresh. Nothing points at old in the merge, and fresh is left unused with it."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.C", "core.B1", "core.B2", "core.B3", "core.B1", "cargo.M3", "core.B1", "cargo.M3", "cargo.M3", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

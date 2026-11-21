@@ -1,0 +1,5 @@
+source = "Hand-built reduction: a workspace of members a and b with registry crates itoa and serde; checksums are synthetic. Base: a uses itoa and b uses serde. Ours adds a depending on b and b using itoa; theirs adds a using serde and b depending on a. Each branch is acyclic, the combination makes a and b depend on each other, which Cargo rejects."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"
+also_refused = ["cargo.R6"]

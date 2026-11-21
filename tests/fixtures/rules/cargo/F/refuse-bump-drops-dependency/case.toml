@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours moves wrapper to 1.0.1, which no longer depends on leaf (a feature gone), and drops leaf; theirs drops tool's dependency on itoa. No manifests are needed to refuse."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.FEATURES"

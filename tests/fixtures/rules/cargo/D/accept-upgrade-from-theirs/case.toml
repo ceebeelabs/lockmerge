@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Theirs moves itoa from 1.0.0 to 1.0.1; ours drops tool's dependency on leaf. Neither side changes a feature declaration."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.C", "cargo.D", "cargo.F", "cargo.B1", "cargo.C", "core.B2", "core.B1", "core.B4", "core.B3", "core.B4", "core.B1", "core.B2", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]
