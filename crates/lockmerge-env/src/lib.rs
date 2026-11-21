@@ -6,6 +6,8 @@
 //!   which commit is theirs.
 //! - [`Git`] shells out to the `git` executable (no git library) to resolve
 //!   commits, to prove that ours is `HEAD`, and to read and merge manifests.
+//! - [`CargoHome`] reads Cargo's registry index cache for the native-links
+//!   proof (read-only, offline).
 //! - [`GitManifests`] implements core's [`lockmerge_core::Manifests`].
 //!
 //! Nothing here guesses. Whatever cannot be proven is
@@ -14,8 +16,10 @@
 
 #![forbid(unsafe_code)]
 
+mod cargo_home;
 mod git;
 pub mod labels;
 
+pub use cargo_home::CargoHome;
 pub use git::{DriverArgs, Git, GitManifests, Identified, githead_from_env};
-pub use lockmerge_core::{ManifestResult, Manifests, Why};
+pub use lockmerge_core::{IndexCache, ManifestResult, Manifests, Why};

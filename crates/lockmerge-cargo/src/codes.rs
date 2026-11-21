@@ -39,8 +39,9 @@ pub const R12: ReasonCode = code("R12");
 /// A rule needs the manifests and they are not available, not identifiable or
 /// not read exactly.
 pub const R14: ReasonCode = code("R14");
-/// Different registry or git ids added by each side need the native-links
-/// proof, which this crate does not have.
+/// Different registry or git ids added by each side, and the native-links
+/// proof (V6) does not hold: a git or path package among them, no matching
+/// index entry, or a `links` value two packages share.
 pub const R15: ReasonCode = code("R15");
 /// An input is not in the exact form Cargo writes (the round-trip rule).
 pub const CANON: ReasonCode = code("CANON");
@@ -66,6 +67,7 @@ pub const V2: &str = "cargo.V2";
 pub const V3: &str = "cargo.V3";
 pub const V4: &str = "cargo.V4";
 pub const V5: &str = "cargo.V5";
+pub const V6: &str = "cargo.V6";
 
 pub static RULES: &[RuleDef] = &[
     RuleDef {
@@ -127,6 +129,11 @@ pub static RULES: &[RuleDef] = &[
         id: V5,
         summary: "The merged set is written in Cargo's canonical form, and every edge resolves back to its target.",
         adr: "0008#8",
+    },
+    RuleDef {
+        id: V6,
+        summary: "When each branch added different registry crates, every registry crate of the merged set has a matching registry index cache entry and no two packages share a `links` value.",
+        adr: "0008#15",
     },
 ];
 
@@ -229,7 +236,7 @@ pub static CODES: &[CodeDef] = &[
     def(
         R15,
         "Both branches added different crates",
-        "{subjects} were added by one branch and different crates by the other; two crates may link the same native library, which lockmerge cannot yet rule out.",
+        "{subjects} were added by one branch and different crates by the other, and lockmerge could not prove from Cargo's local registry index cache that no two of the crates link the same native library.",
         BY_HAND,
     ),
     def(

@@ -14,6 +14,8 @@ lockmerge-core = { path = "../lockmerge-core" }
 # TOML writer at all, so no output can come from it.
 toml_edit = { version = "0.25", default-features = false, features = ["parse"] }
 semver = "1"
+# Parses the JSON of a registry index entry (docs/formats/cargo-registry-index.md).
+serde_json = "1"
 
 [dev-dependencies]
 lockmerge-core = { path = "../lockmerge-core", features = ["testkit"] }
