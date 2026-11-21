@@ -2,10 +2,13 @@
 
 A git merge driver that merges lockfiles by what they mean, not by their lines.
 
-> **Status: pre-alpha, research phase.** There is no code yet. The plan is in
-> [docs/charter.md](docs/charter.md), and the research documents land in
-> [docs/](docs/) as they are written. Later work and known risks are
-> listed in [docs/04-backlog.md](docs/04-backlog.md).
+> **Status: pre-alpha.** There is no `lockmerge` binary yet and nothing to
+> install. The Cargo workspace has two library crates: `lockmerge-core`
+> (the three-way engine, proofs and refusal reports) and `lockmerge-cargo`
+> (the `Cargo.lock` parser, resolved model, base rules and canonical writer).
+> The plan is in [docs/charter.md](docs/charter.md), the research is in
+> [docs/](docs/), and later work and known risks are listed in
+> [docs/04-backlog.md](docs/04-backlog.md).
 
 ## The problem
 

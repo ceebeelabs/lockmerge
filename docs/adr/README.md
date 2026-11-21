@@ -52,3 +52,4 @@ change (YYYY-MM-DD).
 | [0012](0012-format-trait-and-merge-result-type.md) | Format trait and the merge result type | Accepted |
 | [0013](0013-refusal-and-reporting-model.md) | Refusal and reporting model | Accepted |
 | [0014](0014-parsers-are-read-only.md) | Parsers are read-only; `toml_edit` for TOML | Accepted |
+| [0015](0015-r15-is-a-whole-file-refusal.md) | R15 is a whole-file refusal (corrects the context of ADR 0013) | Accepted |

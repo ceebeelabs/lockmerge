@@ -1,8 +1,9 @@
 # Contributing to lockmerge
 
-Thanks for your interest. lockmerge is in its research phase: the plan is in
-[docs/charter.md](docs/charter.md), and there is no code to change yet. Issues
-and discussion are welcome.
+Thanks for your interest. lockmerge is pre-alpha. The plan is in
+[docs/charter.md](docs/charter.md). The Cargo workspace has the library crates
+`crates/lockmerge-core` and `crates/lockmerge-cargo`; there is no binary yet.
+Issues, discussion and pull requests are welcome.
 
 ## The rule every change keeps
 
@@ -41,6 +42,9 @@ will not be merged, however rare the case. When in doubt, refuse.
   cargo clippy --all-targets -- -D warnings
   cargo test
   ```
+
+  The `rust` CI job runs the same three checks on every pull request, over the
+  whole workspace.
 
 ### Test fixtures
 
