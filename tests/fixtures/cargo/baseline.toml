@@ -7,3 +7,7 @@ min_reachable = 0
 min_rate_resolved = 0
 min_rate_of = 1
 max_unverified = 0
+# The regression ratchet (ADR 0017): git-clean-correct cases lockmerge refuses.
+# It may only go down; the first real value is the count measured when the
+# corpus is first extracted.
+max_regressions = 0

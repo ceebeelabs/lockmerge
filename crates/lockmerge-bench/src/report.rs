@@ -86,8 +86,8 @@ fn eco_section(out: &mut String, e: &EcoReport, formats: &[&dyn Format]) {
     );
     let _ = writeln!(
         out,
-        "  False merges {} (must be 0); errors {} (must be 0); regressions {} (target 0); exact {}",
-        m.false_merges, m.errors, m.regressions, m.exact
+        "  False merges {} (must be 0); errors {} (must be 0); regressions {} of {} git-clean-correct (target 0; v1 allows 5%); exact {}",
+        m.false_merges, m.errors, m.regressions, m.git_clean_correct, m.exact
     );
     let _ = writeln!(
         out,
@@ -97,8 +97,13 @@ fn eco_section(out: &mut String, e: &EcoReport, formats: &[&dyn Format]) {
     if let Some(b) = &e.baseline {
         let _ = writeln!(
             out,
-            "  Baseline: rate >= {}/{}, cases >= {}, reachable >= {}, unverified <= {}",
-            b.min_rate_resolved, b.min_rate_of, b.min_cases, b.min_reachable, b.max_unverified
+            "  Baseline: rate >= {}/{}, cases >= {}, reachable >= {}, unverified <= {}, regressions <= {}",
+            b.min_rate_resolved,
+            b.min_rate_of,
+            b.min_cases,
+            b.min_reachable,
+            b.max_unverified,
+            b.max_regressions
         );
     }
     let _ = writeln!(out, "  lockmerge classes:");
