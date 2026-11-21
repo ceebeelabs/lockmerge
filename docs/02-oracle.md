@@ -365,7 +365,7 @@ Definitions. Over the real corpus of one ecosystem, after skips:
 | Re-resolved report | Counts of `refused-correct`, `resolved-unverified`, and `resolved-wrong` among re-resolved cases. Reported separately; excluded from the headline denominator. |
 | Coverage | `resolved-correct` over all reachable cases (git-clean included), with the `git-clean-wrong` count beside it. |
 | False-merge count | `resolved-wrong` over all N, including git-clean cases. **Must be 0.** |
-| Regression count | `git-clean-correct` cases that lockmerge refused. Target 0. |
+| Regression count | `git-clean-correct` cases that lockmerge refused. Target 0. Gated: ratcheted per PR, and at most 5% of `git-clean-correct` cases for v1 (ADR 0017). |
 | Error count | `error` cases. **Must be 0.** |
 | Exact rate | Resolved-correct cases whose bytes equal what the package manager writes. Reported. |
 | Refusal breakdown | `refused` by reason code. The largest bucket is the next rule to prove. |
@@ -412,14 +412,19 @@ about 65%.
    from `case.toml`;
 4. `resolved-unverified` exceeds `max_unverified` in the baseline (starts at
    the measured count; each new one needs owner review);
-5. the oracle self-test fails: the classifier is run against two built-in stub
+5. the regression count exceeds `max_regressions` in the baseline (ADR 0017;
+   the ratchet only goes down);
+6. the oracle self-test fails: the classifier is run against two built-in stub
    mergers (return `ours`, return `base`) and must class a case where those are
    wrong as `resolved-wrong`.
 
 **The release check.** `lockmerge-bench check --release v1` additionally
 requires, for the real Cargo corpus, at least 40 reachable conflicts, a
 reachable rate of at least 60% and a 95% Wilson lower bound of at least 50%;
-and for the agent-style corpus, a rate of at least 90%. It is run before a v1
+and for the agent-style corpus, a rate of at least 90%. For each Cargo
+corpus it also requires regressions (`git-clean-correct` cases that lockmerge
+refuses) to be at most 5% of `git-clean-correct` cases, compared exactly
+(ADR 0017): installing lockmerge must not make merges worse than plain git. It is run before a v1
 tag, not on every PR (early PRs are below target by design). Making it a
 required check once the targets are met is a later choice.
 
@@ -502,7 +507,8 @@ tests/fixtures/
 `baseline.toml` holds integers: `min_cases`, `min_reachable`,
 `min_rate_resolved` and `min_rate_of` (the reachable rate must be at least
 `min_rate_resolved / min_rate_of`, compared exactly, so rounding cannot fail
-or pass a run), and `max_unverified`. A missing or malformed `baseline.toml`
+or pass a run), `max_unverified` and `max_regressions` (the regression ratchet, a count that
+may only go down). A missing or malformed `baseline.toml`
 or `INDEX.toml` fails the gate, and so does a missing `cargo/` directory.
 
 File names are neutral (no `Cargo.lock`), so Dependabot, Renovate and Cargo

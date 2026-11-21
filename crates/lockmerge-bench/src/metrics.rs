@@ -50,6 +50,9 @@ pub struct Metrics {
     pub false_merges: usize,
     pub errors: usize,
     pub regressions: usize,
+    /// Cases where plain git is clean and correct: the denominator of the
+    /// regression rate (ADR 0017).
+    pub git_clean_correct: usize,
     pub git_clean_wrong: usize,
     /// Resolved-correct over all reachable cases, git-clean included.
     pub resolved_correct_reachable: usize,
@@ -131,8 +134,11 @@ pub fn compute(results: &[CaseResult]) -> Metrics {
         if r.git == GitOutcome::CleanWrong {
             m.git_clean_wrong += 1;
         }
-        if r.git == GitOutcome::CleanCorrect && r.class == Class::Refused {
-            m.regressions += 1;
+        if r.git == GitOutcome::CleanCorrect {
+            m.git_clean_correct += 1;
+            if r.class == Class::Refused {
+                m.regressions += 1;
+            }
         }
         if r.exact {
             m.exact += 1;
@@ -227,7 +233,7 @@ mod tests {
         assert_eq!(m.reachable_rate(), Some(0.5));
         assert_eq!(m.all_conflicts_rate(), Some(0.25));
         assert_eq!(m.false_merges, 1);
-        assert_eq!(m.regressions, 1);
+        assert_eq!((m.regressions, m.git_clean_correct), (1, 2));
         assert_eq!(m.git_clean_wrong, 1);
         assert_eq!(m.resolved_correct_reachable, 2);
         assert_eq!(

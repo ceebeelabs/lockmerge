@@ -39,7 +39,7 @@ struct Fixtures {
     root: TempDir,
 }
 
-const BASELINE: &str = "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 0\nmin_rate_of = 1\nmax_unverified = 0\n";
+const BASELINE: &str = "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 0\nmin_rate_of = 1\nmax_unverified = 0\nmax_regressions = 0\n";
 
 impl Fixtures {
     fn new(baseline: &str) -> Fixtures {
@@ -123,7 +123,7 @@ fn add(fx: &Fixtures, sha: &str, kind: &str, c: &[Vec<u8>; 4]) {
 #[test]
 fn a_driver_that_resolves_correctly_counts_in_the_headline() {
     let fx = Fixtures::new(
-        "min_cases = 1\nmin_reachable = 1\nmin_rate_resolved = 1\nmin_rate_of = 1\nmax_unverified = 0\n",
+        "min_cases = 1\nmin_reachable = 1\nmin_rate_resolved = 1\nmin_rate_of = 1\nmax_unverified = 0\nmax_regressions = 0\n",
     );
     let c = conflict_case();
     add(&fx, "aaaaaaaaaaaa", "reachable", &c);
@@ -161,7 +161,7 @@ fn a_refusal_is_a_missed_opportunity_and_the_ratchet_catches_it() {
 
     // The same result against a baseline of 1 of 1 fails.
     let fx = Fixtures::new(
-        "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 1\nmin_rate_of = 1\nmax_unverified = 0\n",
+        "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 1\nmin_rate_of = 1\nmax_unverified = 0\nmax_regressions = 0\n",
     );
     add(&fx, "aaaaaaaaaaaa", "reachable", &c);
     let out = run(&fx, &bin, &[]);
@@ -235,6 +235,27 @@ fn git_clean_cases_are_outside_the_headline_and_a_refusal_there_is_a_regression(
     let m = &out.ecosystems[0].metrics;
     assert_eq!((m.c_r, m.s_r, m.regressions), (0, 0, 0));
     assert_eq!(m.resolved_correct_reachable, 1);
+}
+
+#[test]
+fn the_regression_ratchet_fails_a_refusal_of_a_git_clean_case() {
+    let c = clean_case();
+    let (_d, refuses) = driver("exit 1");
+    let (_e, resolves) = writes(&c[3]);
+    // A baseline allowing none: refusing fails the gate, resolving passes.
+    let fx = Fixtures::new(BASELINE);
+    add(&fx, "aaaaaaaaaaaa", "reachable", &c);
+    let out = run(&fx, &refuses, &[]);
+    assert!(
+        out.failures.iter().any(|f| f.contains("regressions")),
+        "{:?}",
+        out.failures
+    );
+    assert!(run(&fx, &resolves, &[]).passed());
+    // A baseline allowing one accepts the refusal.
+    let fx = Fixtures::new(&BASELINE.replace("max_regressions = 0", "max_regressions = 1"));
+    add(&fx, "aaaaaaaaaaaa", "reachable", &c);
+    assert!(run(&fx, &refuses, &[]).passed());
 }
 
 #[test]
@@ -313,7 +334,7 @@ fn a_changed_fixture_fails_its_hash() {
 #[test]
 fn the_case_count_minimums_cannot_be_dodged_by_deleting_cases() {
     let fx = Fixtures::new(
-        "min_cases = 2\nmin_reachable = 2\nmin_rate_resolved = 0\nmin_rate_of = 1\nmax_unverified = 0\n",
+        "min_cases = 2\nmin_reachable = 2\nmin_rate_resolved = 0\nmin_rate_of = 1\nmax_unverified = 0\nmax_regressions = 0\n",
     );
     add(&fx, "aaaaaaaaaaaa", "reachable", &conflict_case());
     let (_d, bin) = driver("exit 1");
