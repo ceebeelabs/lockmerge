@@ -1,0 +1,7 @@
+# Hand-built for the toy format of crates/lockmerge-core/tests/common/mod.rs.
+# Ours and theirs both fail to parse: ours is the primary refusal, theirs follows.
+source = "hand-built"
+path = "toy.lock"
+outcome = "refused"
+code = "toy.PARSE"
+also_refused = ["toy.PARSE"]

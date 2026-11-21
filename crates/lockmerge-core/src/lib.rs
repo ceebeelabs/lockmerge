@@ -15,6 +15,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod driver_config;
 pub mod engine;
 mod format;
 mod ids;

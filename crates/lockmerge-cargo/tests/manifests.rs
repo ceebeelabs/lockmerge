@@ -473,6 +473,7 @@ fn the_refusals_hold_with_the_sides_swapped() {
     for (rule, name, code) in [
         ("B1", "refuse-manifest-only-pin", "cargo.REQUIREMENT"),
         ("D", "refuse-downgrade", "cargo.DOWNGRADE"),
+        ("C", "refuse-workspace-membership-changed", "cargo.FEATURES"),
         ("C", "refuse-direct-forwarding", "cargo.FEATURES"),
         ("C", "refuse-bridge-forwarding", "cargo.FEATURES"),
         (

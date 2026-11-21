@@ -2,3 +2,4 @@ source = "Real: the Cargo.lock files packaged in the crates.io releases cfg-if 1
 path = "Cargo.lock"
 outcome = "refused"
 code = "cargo.R1"
+also_refused = ["cargo.R1", "cargo.R1"]

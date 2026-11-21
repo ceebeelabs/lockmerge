@@ -208,14 +208,29 @@ fn case_toml_refuses_what_it_cannot_read_exactly() {
     ));
 }
 
+/// A manifests directory built from `(relative path, bytes)` entries.
+fn manifests_dir(name: &str, files: &[(&str, &[u8])]) -> PathBuf {
+    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(&root).unwrap();
+    for (rel, bytes) in files {
+        let f = root.join(rel);
+        fs::create_dir_all(f.parent().unwrap()).unwrap();
+        fs::write(f, bytes).unwrap();
+    }
+    root
+}
+
 #[test]
 fn fake_manifests_read_merged_conflict_and_unavailable() {
-    let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("kit-manifests");
-    let _ = fs::remove_dir_all(&root);
-    fs::create_dir_all(root.join("sub")).unwrap();
-    fs::write(root.join("Cargo.toml"), b"[package]\n").unwrap();
-    fs::write(root.join("sub/Cargo.toml"), b"[member]\n").unwrap();
-    fs::write(root.join("sub/Other.toml.conflict"), b"").unwrap();
+    let root = manifests_dir(
+        "kit-manifests",
+        &[
+            ("merged/Cargo.toml", b"[package]\n"),
+            ("merged/sub/Cargo.toml", b"[member]\n"),
+            ("merged/sub/Other.toml.conflict", b""),
+        ],
+    );
     let m = FakeManifests::from_dir(&root).unwrap();
     assert_eq!(
         m.merged("Cargo.toml"),
@@ -245,9 +260,9 @@ fn fake_manifests_have_sides_that_can_be_exchanged() {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join("kit-sides");
     let _ = fs::remove_dir_all(&root);
     for side in ["base", "ours", "theirs"] {
-        fs::create_dir_all(root.join(format!("manifests-{side}/sub"))).unwrap();
+        fs::create_dir_all(root.join(format!("sides/{side}/sub"))).unwrap();
         fs::write(
-            root.join(format!("manifests-{side}/sub/Cargo.toml")),
+            root.join(format!("sides/{side}/sub/Cargo.toml")),
             side.as_bytes(),
         )
         .unwrap();
@@ -268,4 +283,102 @@ fn fake_manifests_have_sides_that_can_be_exchanged() {
         }
     }
     assert!(Bare.side(Role::Ours, "x").is_err());
+}
+
+#[test]
+fn fake_manifests_do_not_read_files_outside_merged() {
+    // The old layout (manifests/<path>) is no longer read: a file beside
+    // `merged/` is an error, never silently ignored or taken as a manifest.
+    let root = manifests_dir("kit-man-old", &[("Cargo.toml", b"[package]\n")]);
+    let e = FakeManifests::from_dir(&root).unwrap_err();
+    assert!(e.contains("Cargo.toml") && e.contains("merged"), "{e}");
+}
+
+#[test]
+fn fake_manifests_reject_the_per_side_benchmark_layout() {
+    for side in ["base", "ours", "theirs"] {
+        let rel = format!("{side}/Cargo.toml");
+        let root = manifests_dir(
+            &format!("kit-man-side-{side}"),
+            &[("merged/Cargo.toml", b"x"), (&rel, b"y")],
+        );
+        let e = FakeManifests::from_dir(&root).unwrap_err();
+        assert!(
+            e.contains("per-side") && e.contains(side) && e.contains("manifests/merged"),
+            "{side}: {e}"
+        );
+    }
+}
+
+#[test]
+fn fake_manifests_reject_a_conflict_marker_with_content_or_a_twin() {
+    let root = manifests_dir("kit-man-full", &[("merged/a.toml.conflict", b"oops")]);
+    let e = FakeManifests::from_dir(&root).unwrap_err();
+    assert!(e.contains("must be empty"), "{e}");
+    let root = manifests_dir(
+        "kit-man-twin",
+        &[("merged/a.toml", b"x"), ("merged/a.toml.conflict", b"")],
+    );
+    let e = FakeManifests::from_dir(&root).unwrap_err();
+    assert!(e.contains("both"), "{e}");
+}
+
+#[test]
+fn a_case_with_a_per_side_manifests_directory_does_not_load() {
+    let root = copy_of_toy("kit-case-side");
+    let d = root.join("toy/M1/accept-both-raised");
+    fs::create_dir_all(d.join("manifests/ours")).unwrap();
+    fs::write(d.join("manifests/ours/Cargo.toml"), b"x").unwrap();
+    let e = Case::load(&d).unwrap_err();
+    assert!(e.contains("per-side"), "{e}");
+}
+
+#[test]
+fn a_case_reads_its_manifests_from_merged() {
+    let root = copy_of_toy("kit-case-merged");
+    let d = root.join("toy/M1/accept-both-raised");
+    fs::create_dir_all(d.join("manifests/merged")).unwrap();
+    fs::write(d.join("manifests/merged/Cargo.toml"), b"m").unwrap();
+    let c = Case::load(&d).unwrap();
+    assert_eq!(
+        c.manifests.merged("Cargo.toml"),
+        ManifestResult::Merged(b"m".to_vec())
+    );
+}
+
+// ---- also_refused ---------------------------------------------------------
+
+/// The toy fixture whose run refuses several keys: three keys conflict, so
+/// the primary refusal is the first and the rest are `also_refused`.
+fn also_refused_case(name: &str, extra: &str) -> PathBuf {
+    let root = copy_of_toy(name);
+    let d = root.join("toy/M1/refuse-bad-value");
+    let case = d.join("case.toml");
+    let text = fs::read_to_string(&case).unwrap();
+    fs::write(&case, format!("{text}{extra}")).unwrap();
+    d
+}
+
+#[test]
+fn run_case_checks_also_refused() {
+    // Control: the toy refusal has no further fatal refusals.
+    let d = also_refused_case("kit-also-empty", "also_refused = []\n");
+    testkit::run_dir(&Toy::default(), &d).unwrap();
+    // Declaring one that does not happen fails.
+    let d = also_refused_case("kit-also-extra", "also_refused = [\"toy.R3\"]\n");
+    let e = testkit::run_dir(&Toy::default(), &d).unwrap_err();
+    assert!(
+        e.contains("also_refused are [], the case says [\"toy.R3\"]"),
+        "{e}"
+    );
+}
+
+#[test]
+fn run_case_fails_on_an_unlisted_also_refused() {
+    // Two unparsable inputs: ours is primary, theirs is also refused.
+    let root = copy_of_toy("kit-also-unlisted");
+    let d = root.join("toy/E1/refuse-unparsable-theirs");
+    fs::write(d.join("ours"), b"\xff").unwrap();
+    let e = testkit::run_dir(&Toy::default(), &d).unwrap_err();
+    assert!(e.contains("also_refused are [\""), "{e}");
 }

@@ -2,3 +2,4 @@ source = "Hand-built reduction: a workspace of members app, cli and tool with re
 path = "Cargo.lock"
 outcome = "refused"
 code = "cargo.R4"
+also_refused = ["cargo.UNWRITABLE"]

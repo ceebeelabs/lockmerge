@@ -6,7 +6,7 @@
 //! so it lifts the purity lints of `clippy.toml` for itself.
 //!
 //! A case directory holds `base`, `ours`, `theirs`, optionally `expected`,
-//! `manifests/` and `case.toml`:
+//! `manifests/merged/` and `case.toml`:
 //!
 //! ```toml
 //! source = "hand-built"            # where the bytes came from (standing rule 4)
@@ -15,14 +15,19 @@
 //! applied = ["toy.E1", "core.B3"]  # merged: every applied rule, in order
 //! code = "toy.R3"                  # refused: the primary refusal's code
 //! downgrades = ["toy.R14"]         # optional: non-fatal refusals, in order
+//! also_refused = ["toy.R3"]        # optional: fatal refusals after the primary
 //! ```
 //!
-//! `manifests-base/`, `manifests-ours/` and `manifests-theirs/` hold each
-//! input's own manifests, by the same repository paths.
-//! `manifests/<repo path>` holds the merged manifest the fake returns for that
-//! path; `manifests/<repo path>.conflict` (any content) makes it a
-//! [`ManifestResult::Conflict`]; any other path is unavailable. The `index/`
-//! directory of a case is reserved for the `FakeIndex` of `lockmerge-cargo`.
+//! A rule fixture holds merged manifests: `manifests/merged/<repo path>` is
+//! the merged manifest the fake returns for that path;
+//! `manifests/merged/<repo path>.conflict` (an empty file) makes it a
+//! [`ManifestResult::Conflict`]; any other path is unavailable. The per-side
+//! layout `manifests/{base,ours,theirs}/<path>` belongs to benchmark cases
+//! (ADR 0007), which the bench replays through git; a rule fixture that has it
+//! is an error. A rule fixture may also hold each input's own manifests under
+//! `sides/{base,ours,theirs}/<path>`, which [`Manifests::side`] returns. The
+//! `index/` directory of a case is reserved for the `FakeIndex` of
+//! `lockmerge-cargo`.
 #![allow(clippy::disallowed_methods, clippy::disallowed_types)]
 
 use crate::{Context, Format, Inputs, ManifestResult, Manifests, Outcome, Role, Why};
@@ -72,17 +77,16 @@ impl FakeManifests {
         }
     }
 
-    /// Reads the manifests of a case directory: `manifests/` for the merged
-    /// ones and `manifests-base/`, `manifests-ours/` and `manifests-theirs/`
-    /// for the inputs' own.
+    /// Reads the manifests of a case directory: `manifests/merged/` for the
+    /// merged ones and `sides/{base,ours,theirs}/` for the inputs' own.
     pub fn from_case_dir(dir: &Path) -> Result<Self, String> {
         let mut fake = Self::from_dir(&dir.join("manifests"))?;
         for (role, name) in [
-            (Role::Base, "manifests-base"),
-            (Role::Ours, "manifests-ours"),
-            (Role::Theirs, "manifests-theirs"),
+            (Role::Base, "base"),
+            (Role::Ours, "ours"),
+            (Role::Theirs, "theirs"),
         ] {
-            let side_dir = dir.join(name);
+            let side_dir = dir.join("sides").join(name);
             if side_dir.is_dir() {
                 fake.read_side_dir(role, &side_dir, "")?;
             }
@@ -102,11 +106,36 @@ impl FakeManifests {
         Ok(())
     }
 
-    /// Reads a `manifests/` directory. A missing directory is an empty fake.
+    /// Reads a rule fixture's `manifests/` directory, which holds only
+    /// `merged/`. A missing directory is an empty fake. The per-side benchmark
+    /// layout and anything else beside `merged/` is an error.
     pub fn from_dir(dir: &Path) -> Result<Self, String> {
         let mut fake = Self::new();
-        if dir.is_dir() {
-            fake.read_dir(dir, "")?;
+        if !dir.is_dir() {
+            return Ok(fake);
+        }
+        for entry in sorted_entries(dir)? {
+            let name = file_name(&entry)?;
+            if name == "merged" && entry.is_dir() {
+                continue;
+            }
+            return Err(if matches!(name.as_str(), "base" | "ours" | "theirs") {
+                format!(
+                    "{}: the per-side manifests layout belongs to benchmark cases; a rule \
+                     fixture holds merged manifests under manifests/merged/<path> \
+                     (found `{name}`)",
+                    entry.display()
+                )
+            } else {
+                format!(
+                    "{}: a rule fixture's manifests/ holds only `merged/`, not `{name}`",
+                    entry.display()
+                )
+            });
+        }
+        let merged = dir.join("merged");
+        if merged.is_dir() {
+            fake.read_dir(&merged, "")?;
         }
         Ok(fake)
     }
@@ -118,9 +147,27 @@ impl FakeManifests {
             if entry.is_dir() {
                 self.read_dir(&entry, &format!("{rel}/"))?;
             } else if let Some(path) = rel.strip_suffix(".conflict") {
+                if !read(&entry)?.is_empty() {
+                    return Err(format!(
+                        "{}: a .conflict file must be empty",
+                        entry.display()
+                    ));
+                }
+                if self.by_path.contains_key(path) {
+                    return Err(format!(
+                        "{}: `{path}` has both a manifest and a .conflict file",
+                        entry.display()
+                    ));
+                }
                 self.by_path
                     .insert(path.to_string(), ManifestResult::Conflict);
             } else {
+                if self.by_path.contains_key(&rel) {
+                    return Err(format!(
+                        "{}: `{rel}` has both a manifest and a .conflict file",
+                        entry.display()
+                    ));
+                }
                 self.by_path
                     .insert(rel, ManifestResult::Merged(read(&entry)?));
             }
@@ -163,6 +210,8 @@ pub struct Case {
     pub expect: Expect,
     /// Codes of the non-fatal refusals the report must carry, in order.
     pub downgrades: Vec<String>,
+    /// Codes of the fatal refusals after the primary one, in order.
+    pub also_refused: Vec<String>,
     pub base: Vec<u8>,
     pub ours: Vec<u8>,
     pub theirs: Vec<u8>,
@@ -181,6 +230,7 @@ impl Case {
             path: self.path.clone(),
             expect: self.expect.clone(),
             downgrades: self.downgrades.clone(),
+            also_refused: self.also_refused.clone(),
             base: self.base.clone(),
             ours: self.theirs.clone(),
             theirs: self.ours.clone(),
@@ -198,6 +248,7 @@ impl Case {
         let path = t.take_string("path").map_err(at)?;
         let outcome = t.take_string("outcome").map_err(at)?;
         let downgrades = t.take_list_opt("downgrades").map_err(at)?;
+        let also_refused = t.take_list_opt("also_refused").map_err(at)?;
         let (expect, expected) = match outcome.as_str() {
             "merged" => {
                 let applied = t.take_list("applied").map_err(at)?;
@@ -224,6 +275,7 @@ impl Case {
             path,
             expect,
             downgrades,
+            also_refused,
             base: read(&dir.join("base")).map_err(at)?,
             ours: read(&dir.join("ours")).map_err(at)?,
             theirs: read(&dir.join("theirs")).map_err(at)?,
@@ -234,7 +286,7 @@ impl Case {
 }
 
 /// Runs `case` through `format` and checks the outcome exactly: bytes,
-/// applied rules and downgrades for a merge, the primary code for a refusal.
+/// applied rules, downgrades and also_refused for a merge, the primary code for a refusal.
 pub fn run_case(format: &dyn Format, case: &Case) -> Result<(), String> {
     let cx = Context::new(&case.manifests);
     let inputs = Inputs {
@@ -256,6 +308,17 @@ pub fn run_case(format: &dyn Format, case: &Case) -> Result<(), String> {
         return fail(format!(
             "downgrades are {downgrades:?}, the case says {:?}",
             case.downgrades
+        ));
+    }
+    let also: Vec<String> = report
+        .also_refused
+        .iter()
+        .map(|r| r.code.to_string())
+        .collect();
+    if also != case.also_refused {
+        return fail(format!(
+            "also_refused are {also:?}, the case says {:?}",
+            case.also_refused
         ));
     }
     match (&case.expect, &report.outcome) {

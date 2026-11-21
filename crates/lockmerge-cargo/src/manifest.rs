@@ -461,6 +461,10 @@ pub struct Selection {
     pub edition: Option<String>,
     /// Declarations without their version requirement.
     pub decls: BTreeMap<DepKey, Decl>,
+    /// The workspace's `members` and `exclude` as written, sorted, for a root
+    /// manifest. Cargo resolves the features of every member, so a package
+    /// that joins or leaves the workspace changes which features apply.
+    pub members: Option<(Vec<String>, Vec<String>)>,
 }
 
 impl Manifest {
@@ -469,6 +473,14 @@ impl Manifest {
             features: self.features.clone(),
             resolver: self.resolver.clone(),
             edition: self.edition.clone(),
+            members: self.workspace.as_ref().map(|w| {
+                let sorted = |v: &Vec<String>| {
+                    let mut v = v.clone();
+                    v.sort();
+                    v
+                };
+                (sorted(&w.members), sorted(&w.exclude))
+            }),
             decls: self
                 .deps
                 .iter()

@@ -2,11 +2,12 @@
 
 A git merge driver that merges lockfiles by what they mean, not by their lines.
 
-> **Status: pre-alpha.** There is no `lockmerge` binary yet and nothing to
-> install. The Cargo workspace has two library crates: `lockmerge-core`
-> (the three-way engine, proofs and refusal reports) and `lockmerge-cargo`
-> (the `Cargo.lock` parser, resolved model, base rules, manifest-assisted
-> rules and canonical writer).
+> **Status: pre-alpha.** The `lockmerge` binary exists, but nothing is
+> released or packaged yet; build it from this repository. The workspace has
+> `lockmerge-core` (the three-way engine, proofs and refusal reports),
+> `lockmerge-cargo` (the `Cargo.lock` parser, resolved model, base rules,
+> manifest-assisted rules and canonical writer), `lockmerge-env` (commit identification and manifests from
+> git) and `lockmerge-cli` (the `lockmerge` binary).
 > The plan is in [docs/charter.md](docs/charter.md), the research is in
 > [docs/](docs/), and later work and known risks are listed in
 > [docs/04-backlog.md](docs/04-backlog.md).
@@ -53,27 +54,31 @@ In the order they are planned:
 | `poetry.lock` | Poetry |
 | `Gemfile.lock` | Bundler |
 
-## How it will plug in (planned)
+## Install
 
-The commands below are a sketch; the final interface comes out of the
-research in [docs/charter.md](docs/charter.md).
+Requirements: git 2.44.0 or newer (the oldest that expands `%S %X %Y` for the
+driver; with older git, `lockmerge install` warns, and the driver still runs
+but falls back to lockfile-only rules), and `lockmerge` on your `PATH`.
 
 ```sh
+cargo build --release   # then put target/release/lockmerge on your PATH
 lockmerge install          # register the driver in this repository
 lockmerge install --global # or for every repository
+lockmerge install --print  # only show what would be written
 ```
 
-which amounts to git configuration like:
+`install` writes `merge.lockmerge.name` and `merge.lockmerge.driver` (the
+driver is `lockmerge merge-driver %O %A %B %L %P %S %X %Y`) and prints them.
+Then say which files use it, in `.gitattributes`:
 
 ```gitattributes
-# .gitattributes
-Cargo.lock      merge=lockmerge
-pnpm-lock.yaml  merge=lockmerge
+Cargo.lock  merge=lockmerge
 ```
 
-```sh
-git config merge.lockmerge.driver "lockmerge merge %O %A %B %P"
-```
+When lockmerge refuses, `git merge` reports a conflict, the file holds git's
+conflict markers, and the reason is printed on stderr. An unsupported file name
+or a missing base version is refused the same way. An internal error exits 255
+and leaves the file as git wrote it.
 
 ## Not in scope for v1
 

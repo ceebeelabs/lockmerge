@@ -219,7 +219,7 @@ pub type Mismatch = String;
 
 /// Whether every request for features in the merged manifests is the one the
 /// side's lockfile was resolved with (rules M1 e and C): the `[features]`
-/// tables, the resolver and edition, and every dependency declaration without
+/// tables, the workspace's `members` and `exclude`, the resolver and edition, and every dependency declaration without
 /// its version requirement are equal, for the root manifest and every path
 /// package. Two differences are allowed, because they come from the other
 /// branch alone and cannot change what the side's lockfile was resolved with:
@@ -263,6 +263,12 @@ fn same_selection(
 ) -> Result<(), Mismatch> {
     if merged.features != side.features {
         return Err(format!("{path}: the [features] table differs"));
+    }
+    if merged.members != side.members {
+        return Err(format!("{path}: the workspace members or exclude differ"));
+    }
+    if merged.members != side.members {
+        return Err(format!("{path}: the workspace members or exclude differ"));
     }
     if merged.resolver != side.resolver || merged.edition != side.edition {
         return Err(format!("{path}: the resolver or edition differs"));
