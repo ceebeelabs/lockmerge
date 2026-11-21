@@ -10,11 +10,33 @@ fn args(a: &[&str]) -> Vec<String> {
     a.iter().map(|s| s.to_string()).collect()
 }
 
+/// The `lockmerge` binary that `cargo test --workspace` builds (lockmerge-cli's
+/// tests need it), next to this test's `deps/` directory.
+fn built_driver() -> Option<String> {
+    let exe = std::env::current_exe().ok()?;
+    let bin = exe.parent()?.parent()?.join("lockmerge");
+    bin.is_file().then(|| bin.to_string_lossy().into_owned())
+}
+
 #[test]
 fn the_committed_corpus_passes_the_per_pr_gate() {
-    // The `bench` CI job runs this same command. It passes on the empty corpus
-    // and needs no `lockmerge` binary, because no case is replayed.
-    assert_eq!(main(args(&["check", "--fixtures", &fixtures()])), 0);
+    // The `bench` CI job runs this same check with the built driver. Replaying
+    // the committed corpus needs the `lockmerge` binary; it is built by a
+    // workspace test run, not by `cargo test -p lockmerge-bench` alone.
+    let Some(driver) = built_driver() else {
+        eprintln!("skipped: no built `lockmerge` binary; run `cargo test --workspace`");
+        return;
+    };
+    assert_eq!(
+        main(args(&[
+            "check",
+            "--fixtures",
+            &fixtures(),
+            "--driver-bin",
+            &driver
+        ])),
+        0
+    );
 }
 
 #[test]
