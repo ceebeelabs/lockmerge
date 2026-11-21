@@ -1,0 +1,29 @@
+repository = "https://github.com/sharkdp/fd.git"
+license = "MIT OR Apache-2.0"
+base_commit = "b80cd53e65615060a62a5ea349a0d78b65d7029e"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+shape = "shared-dep-different-versions"
+intent = "refuse"
+built_by = "owner-side synth, docs/02-oracle.md section 6.3; ADR 0007 rule 4 exception"
+cargo_version = "cargo 1.96.0 (30a34c682 2026-05-25)"
+extracted_on = "2026-11-21"
+
+[recipe]
+base = "checkout b80cd53e65615060a62a5ea349a0d78b65d7029e"
+ours = ["cargo add sha2@=0.11.1", "cargo metadata --format-version 1"]
+theirs = ["cargo add md-5@=0.11.0", "cargo update -p digest --precise 0.11.2", "cargo metadata --format-version 1"]
+expected = ["cargo add sha2@=0.11.1", "cargo add md-5@=0.11.0", "cargo metadata --format-version 1"]
+expected_rule = "Owner rule (2026-11-21): when the two sides pick different versions of one crate, expected keeps the HIGHER version, whichever side is ours (rule M1; what a fresh cargo resolve picks). The expected recipe applies the lower choice first and the higher last, or omits a step that would only lower a version."
+
+[sha256]
+"base" = "080f85e31279c422c5591ad7092ef93c7171711122c7de2b7aa32b84c5e72ed9"
+"expected" = "b90545ba527bb7a5eadb575fdf6f222e2f132394c454d732cf598e7c1e91a414"
+"manifests/base/Cargo.toml" = "a9c3e7ffb7c74509ecd1292b73a8a17434714b8da6a32c642991216c5ff92b17"
+"manifests/ours/Cargo.toml" = "d4fdaa58e33d4893dce7733df231e167cc1d249684b1ab9c087ad15a0b5d6bca"
+"manifests/theirs/Cargo.toml" = "1d5993c006a79a957101c145d839e990b0cb53d5925dae8967c04bdd4448a1ff"
+"ours" = "1e569ef2eec96ed72f98bcdd56221ae9ae67d4b9309e025c21500da4e5076759"
+"theirs" = "7cb9873f5c9811c2c8c6016ad427552154feb0ff283e7e2e62e767058b6804ae"
