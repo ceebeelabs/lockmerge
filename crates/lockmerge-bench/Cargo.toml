@@ -1,0 +1,24 @@
+[package]
+name = "lockmerge-bench"
+description = "Replay harness, metrics and the false-merge gate of lockmerge"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+name = "lockmerge_bench"
+
+[[bin]]
+name = "lockmerge-bench"
+path = "src/main.rs"
+
+[dependencies]
+lockmerge-core = { path = "../lockmerge-core" }
+# SHA-256 of fixtures (ADR 0006). MIT OR Apache-2.0.
+sha2 = "0.10"
+# Read-only TOML parsing of case.toml, baseline.toml and the Cargo oracle
+# (docs/03-architecture.md section 4). MIT OR Apache-2.0.
+toml_edit = "0.25"
