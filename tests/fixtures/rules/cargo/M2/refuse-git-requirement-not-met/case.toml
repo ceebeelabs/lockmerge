@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool with the git crate g 1.0.0 and registry crates itoa and memchr; checksums are synthetic. app uses g directly while the workspace declares g = '1' unused. Ours switches app to workspace inheritance and adds itoa; theirs raises the workspace requirement to '2' and adds memchr. The merged manifest requires g 2, the lockfile keeps 1.0.0."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

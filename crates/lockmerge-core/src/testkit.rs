@@ -24,11 +24,13 @@
 //! [`ManifestResult::Conflict`]; any other path is unavailable. The per-side
 //! layout `manifests/{base,ours,theirs}/<path>` belongs to benchmark cases
 //! (ADR 0007), which the bench replays through git; a rule fixture that has it
-//! is an error. The `index/` directory of a case is reserved for the
-//! `FakeIndex` of `lockmerge-cargo`.
+//! is an error. A rule fixture may also hold each input's own manifests under
+//! `sides/{base,ours,theirs}/<path>`, which [`Manifests::side`] returns. The
+//! `index/` directory of a case is reserved for the `FakeIndex` of
+//! `lockmerge-cargo`.
 #![allow(clippy::disallowed_methods, clippy::disallowed_types)]
 
-use crate::{Context, Format, Inputs, ManifestResult, Manifests, Outcome, Why};
+use crate::{Context, Format, Inputs, ManifestResult, Manifests, Outcome, Role, Why};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -37,6 +39,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone, Debug, Default)]
 pub struct FakeManifests {
     by_path: BTreeMap<String, ManifestResult>,
+    sides: BTreeMap<(Role, String), Vec<u8>>,
 }
 
 impl FakeManifests {
@@ -48,6 +51,59 @@ impl FakeManifests {
     pub fn with(mut self, repo_path: &str, result: ManifestResult) -> Self {
         self.by_path.insert(repo_path.to_string(), result);
         self
+    }
+
+    /// Sets one input's own manifest at `repo_path`.
+    pub fn with_side(mut self, role: Role, repo_path: &str, bytes: &[u8]) -> Self {
+        self.sides
+            .insert((role, repo_path.to_string()), bytes.to_vec());
+        self
+    }
+
+    /// The same manifests with the inputs' own of ours and theirs exchanged.
+    pub fn swapped(&self) -> Self {
+        let swap = |r: Role| match r {
+            Role::Ours => Role::Theirs,
+            Role::Theirs => Role::Ours,
+            Role::Base => Role::Base,
+        };
+        Self {
+            by_path: self.by_path.clone(),
+            sides: self
+                .sides
+                .iter()
+                .map(|((r, p), b)| ((swap(*r), p.clone()), b.clone()))
+                .collect(),
+        }
+    }
+
+    /// Reads the manifests of a case directory: `manifests/merged/` for the
+    /// merged ones and `sides/{base,ours,theirs}/` for the inputs' own.
+    pub fn from_case_dir(dir: &Path) -> Result<Self, String> {
+        let mut fake = Self::from_dir(&dir.join("manifests"))?;
+        for (role, name) in [
+            (Role::Base, "base"),
+            (Role::Ours, "ours"),
+            (Role::Theirs, "theirs"),
+        ] {
+            let side_dir = dir.join("sides").join(name);
+            if side_dir.is_dir() {
+                fake.read_side_dir(role, &side_dir, "")?;
+            }
+        }
+        Ok(fake)
+    }
+
+    fn read_side_dir(&mut self, role: Role, dir: &Path, prefix: &str) -> Result<(), String> {
+        for entry in sorted_entries(dir)? {
+            let rel = format!("{prefix}{}", file_name(&entry)?);
+            if entry.is_dir() {
+                self.read_side_dir(role, &entry, &format!("{rel}/"))?;
+            } else {
+                self.sides.insert((role, rel), read(&entry)?);
+            }
+        }
+        Ok(())
     }
 
     /// Reads a rule fixture's `manifests/` directory, which holds only
@@ -127,6 +183,13 @@ impl Manifests for FakeManifests {
             .cloned()
             .unwrap_or_else(|| ManifestResult::Unavailable(Why("not in the fixture".into())))
     }
+
+    fn side(&self, role: Role, repo_path: &str) -> Result<Vec<u8>, Why> {
+        self.sides
+            .get(&(role, repo_path.to_string()))
+            .cloned()
+            .ok_or_else(|| Why("not in the fixture".into()))
+    }
 }
 
 /// What a case expects.
@@ -158,6 +221,24 @@ pub struct Case {
 }
 
 impl Case {
+    /// The case with its two branches exchanged, manifests included. The
+    /// `expected` bytes stay; the applied rules may come in another order.
+    pub fn swapped(&self) -> Case {
+        Case {
+            dir: self.dir.clone(),
+            source: self.source.clone(),
+            path: self.path.clone(),
+            expect: self.expect.clone(),
+            downgrades: self.downgrades.clone(),
+            also_refused: self.also_refused.clone(),
+            base: self.base.clone(),
+            ours: self.theirs.clone(),
+            theirs: self.ours.clone(),
+            expected: self.expected.clone(),
+            manifests: self.manifests.swapped(),
+        }
+    }
+
     /// Loads a case directory. Anything unexpected is an error.
     pub fn load(dir: &Path) -> Result<Case, String> {
         let at = |e: String| format!("{}: {e}", dir.display());
@@ -199,7 +280,7 @@ impl Case {
             ours: read(&dir.join("ours")).map_err(at)?,
             theirs: read(&dir.join("theirs")).map_err(at)?,
             expected,
-            manifests: FakeManifests::from_dir(&dir.join("manifests")).map_err(at)?,
+            manifests: FakeManifests::from_case_dir(dir).map_err(at)?,
         })
     }
 }
@@ -368,7 +449,9 @@ pub fn lint(format: &dyn Format, root: &Path) -> Vec<String> {
         }
     }
     for entry in sorted_entries(&base).unwrap_or_default() {
+        // Hidden entries (`.DS_Store`, editor and tool droppings) are not cases.
         if let Ok(name) = file_name(&entry)
+            && !name.starts_with('.')
             && !seen_dirs.contains(&name)
         {
             problems.push(format!(

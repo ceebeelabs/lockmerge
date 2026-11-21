@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours removes the member tool; theirs gives tool a dependency on old. Only registry or git packages are pruned, so a member removed against a change is refused."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R5"

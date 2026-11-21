@@ -1,4 +1,4 @@
-source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours disables a wrapper feature and drops wrapper's edge to leaf; theirs adds the member cli2 depending on wrapper with the feature enabled."
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours disables a wrapper feature and drops wrapper's edge to leaf; theirs adds the member cli2 depending on wrapper with the feature enabled. A registry package that loses a dependency is refused without reading manifests."
 path = "Cargo.lock"
 outcome = "refused"
-code = "cargo.R14"
+code = "cargo.FEATURES"

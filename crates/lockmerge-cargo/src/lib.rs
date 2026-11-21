@@ -11,12 +11,11 @@
 //!   packages, refuses what they cannot settle, validates the merged set (V2
 //!   to V5) and writes it.
 //!
-//! Not part of this crate yet: the manifest rules (M1 to M3, B1, C, D, F) and
-//! the native-links proof (R15). Where those rules would decide, this crate
-//! refuses instead of guessing: a version move of a crate present in base, or a
-//! package gaining or losing a dependency name, is refused with R14, different packages (registry, git or path) added by each side with
-//! R15, and two changes to one package with `core.UNPROVEN` (R5 and R6 come
-//! back with the manifest rules).
+//! - The manifest rules (M1 to M3, B1, C, D, F) read `Cargo.toml` through
+//!   [`lockmerge_core::Manifests`] ([`manifest`], [`find`]) and refuse with R14
+//!   when a manifest is unavailable or not read exactly. The native-links
+//!   proof (R15) is not part of this crate yet: different packages added by
+//!   each side are refused with R15.
 //!
 //! Unchanged inputs are returned byte for byte by the engine (`core.S1`)
 //! before any parsing.
@@ -24,18 +23,25 @@
 #![forbid(unsafe_code)]
 
 mod codes;
+pub mod find;
+pub mod manifest;
+mod merge;
 pub mod model;
+mod moves;
 pub mod parse;
 mod rules;
+mod shared;
 pub mod write;
 
 pub use codes::{CARGO, CODES, RULES};
 pub use model::{Id, Lock, Package};
 
 use lockmerge_core::{
-    CodeDef, Conflict, Context, Draft, Findings, Format, FormatId, Pipeline, Proof, Refusal, Role,
-    RuleDef, Sealed, Verdict,
+    CodeDef, Conflict, Context, Draft, Error, Findings, Format, FormatId, Inputs, Pipeline, Proof,
+    Refusal, Removal, Report, Role, RuleDef, Sealed, Verdict, engine,
 };
+use shared::Shared;
+use std::cell::OnceCell;
 use std::collections::BTreeMap;
 
 /// The Cargo.lock format. Register it with the CLI through [`format`].
@@ -48,7 +54,52 @@ pub fn format() -> &'static dyn Format {
     &CARGO_FORMAT
 }
 
-impl Pipeline for CargoFormat {
+impl Format for CargoFormat {
+    fn id(&self) -> FormatId {
+        CARGO
+    }
+
+    fn matches(&self, file_name: &str) -> bool {
+        file_name == "Cargo.lock"
+    }
+
+    fn rules(&self) -> &'static [RuleDef] {
+        RULES
+    }
+
+    fn codes(&self) -> &'static [CodeDef] {
+        CODES
+    }
+
+    fn merge(&self, inputs: &Inputs<'_>, cx: &Context<'_>) -> Result<Report, Error> {
+        engine::run(&Run::new(inputs.path), inputs, cx)
+    }
+}
+
+/// One merge run. The manifest rules need the three parsed lockfiles in the
+/// per-key and prune steps, which the engine hands to the format only in the
+/// envelope step, so the run keeps them from there on.
+struct Run {
+    path: String,
+    shared: OnceCell<Shared>,
+}
+
+impl Run {
+    fn new(path: &str) -> Self {
+        Self {
+            path: path.to_string(),
+            shared: OnceCell::new(),
+        }
+    }
+
+    fn shared(&self) -> &Shared {
+        self.shared
+            .get()
+            .expect("the engine runs the envelope before any other step")
+    }
+}
+
+impl Pipeline for Run {
     type Model = Lock;
     type Key = Id;
     type Unit = Package;
@@ -74,19 +125,24 @@ impl Pipeline for CargoFormat {
     }
 
     fn envelope(&self, models: [&Lock; 3], cx: &Context<'_>) -> Result<Vec<Proof>, Refusal> {
-        rules::envelope(models, cx)
+        let sh = self.shared.get_or_init(|| Shared::new(models, &self.path));
+        rules::envelope(models, sh, cx)
     }
 
     fn units(&self, model: &Lock) -> BTreeMap<Id, Package> {
         model.packages.clone()
     }
 
-    fn decide(&self, conflict: &Conflict<'_, Id, Package>, _cx: &Context<'_>) -> Verdict<Package> {
-        rules::decide(conflict)
+    fn decide(&self, conflict: &Conflict<'_, Id, Package>, cx: &Context<'_>) -> Verdict<Package> {
+        merge::decide(self.shared(), cx, conflict)
+    }
+
+    fn prune(&self, draft: &Draft<Id, Package>, cx: &Context<'_>) -> Vec<Removal<Id>> {
+        merge::prune(self.shared(), draft, cx)
     }
 
     fn validate(&self, draft: &Draft<Id, Package>, cx: &Context<'_>) -> Findings {
-        rules::validate(draft, cx)
+        rules::validate(draft, self.shared(), cx)
     }
 
     fn serialize(&self, sealed: &Sealed<Id, Package>, models: [&Lock; 3]) -> Vec<u8> {

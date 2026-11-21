@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Same shape, but ours pins cli to serde = '<1.0.102' in its manifest, which 1.0.101 satisfies and the higher 1.0.102 does not."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R3"

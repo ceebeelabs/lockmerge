@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. The example of the format document: ours adds anyhow and theirs adds tracing to app. Two crates that were never resolved together may link one native library, and the index proof is not available, so R15 refuses before M2 could apply."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R15"

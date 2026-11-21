@@ -1,0 +1,9 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+g = { workspace = true }
+itoa = "1"
+memchr = "2"

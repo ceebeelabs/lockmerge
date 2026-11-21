@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. Ours' manifest declares itoa = '2' but its lockfile resolved 1.0.0."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"
