@@ -1,0 +1,33 @@
+repository = "https://github.com/lapce/lapce.git"
+license = "Apache-2.0"
+merge_commit = "59cc301050045e0268c3bf6bf21500ea9898a364"
+parents = ["2bb82948cb8a02411338510f3aab34090410d25e", "ed3f5993604e07de697f2b54cf0f3795e44c956e"]
+base_commit = "993774f3961d1b531d13d1f932da7cc5f393db95"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+extractor_version = "0.0.0"
+extracted_on = "2026-11-21"
+
+[sha256]
+"base" = "7a3270263b873b57fa7066d2b1f5b5ed75c4a946c18d4f431311e454b759b3ef"
+"ours" = "45bd4b048952d1690d3d6b017979e7ebbaacfc0fac3d0d56ead67e999f77c08e"
+"theirs" = "ebd09a674eba390ef3fd3130fb38281d985f746207759fa60d6d1b827445dad5"
+"expected" = "9c2cd2fb337ab9b20fe9e5a4969ccd820f30df80e6a7f10e261fff84a7c0db3e"
+"manifests/base/Cargo.toml" = "6eaf8518be80ba3341d8804c6b026e88e9efb21ed22e98b4276716efc9142c6a"
+"manifests/base/lapce-app/Cargo.toml" = "509e8d069a2ea36019928a96b7d595350c1590294711effea98f506d83d9e2ec"
+"manifests/base/lapce-core/Cargo.toml" = "aa8bf53641df6a5dbd23fbfe4967ce2c69592a6254c087263397a70c370f7922"
+"manifests/base/lapce-proxy/Cargo.toml" = "85a806574e16a53e29436fadd31983415c8e773900bc83cd9af69d30801e296f"
+"manifests/base/lapce-rpc/Cargo.toml" = "b5d7271abd62d4a3e2241fc802b91dc716529c87ae58b12a0f39c3d3ee283152"
+"manifests/ours/Cargo.toml" = "4ba88a97be42f7b503c9d90f009186f50b7920d07ca7f61d8808de674d3470f7"
+"manifests/ours/lapce-app/Cargo.toml" = "337c716a4b68549676392ea4e50571bfd7c4db4672f1877304adb04c34ba5dd3"
+"manifests/ours/lapce-core/Cargo.toml" = "aa8bf53641df6a5dbd23fbfe4967ce2c69592a6254c087263397a70c370f7922"
+"manifests/ours/lapce-proxy/Cargo.toml" = "85a806574e16a53e29436fadd31983415c8e773900bc83cd9af69d30801e296f"
+"manifests/ours/lapce-rpc/Cargo.toml" = "b5d7271abd62d4a3e2241fc802b91dc716529c87ae58b12a0f39c3d3ee283152"
+"manifests/theirs/Cargo.toml" = "6eaf8518be80ba3341d8804c6b026e88e9efb21ed22e98b4276716efc9142c6a"
+"manifests/theirs/lapce-app/Cargo.toml" = "509e8d069a2ea36019928a96b7d595350c1590294711effea98f506d83d9e2ec"
+"manifests/theirs/lapce-core/Cargo.toml" = "09e7c3f5db11b1e0b126aa0cd242f26a3366ae17dcb3d1665650ba0d5c614df0"
+"manifests/theirs/lapce-proxy/Cargo.toml" = "85a806574e16a53e29436fadd31983415c8e773900bc83cd9af69d30801e296f"
+"manifests/theirs/lapce-rpc/Cargo.toml" = "b5d7271abd62d4a3e2241fc802b91dc716529c87ae58b12a0f39c3d3ee283152"

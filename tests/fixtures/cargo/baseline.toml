@@ -1,8 +1,9 @@
 # The ratchet of `lockmerge-bench check` (docs/02-oracle.md section 5, ADR 0006).
-# The first real baseline is the rate measured when the corpus is first
-# extracted. Lowering a value needs the owner's review.
-min_cases = 0
-min_reachable = 0
+# First baseline: the rate measured when the corpus was first extracted
+# (2026-11-21, before the manifest rules of #37). Lowering a value needs the
+# owner's review.
+min_cases = 56
+min_reachable = 54
 # The reachable resolution rate must be at least min_rate_resolved / min_rate_of.
 min_rate_resolved = 0
 min_rate_of = 1
