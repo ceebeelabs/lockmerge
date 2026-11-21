@@ -1,0 +1,21 @@
+repository = "https://github.com/sharkdp/fd.git"
+license = "MIT OR Apache-2.0"
+merge_commit = "4f81778774463bf414a184cbe6d5219ad2229646"
+parents = ["ee20f426ddf338ac7ead5c5f00ea49258005caaf", "711ba7fe67e5aadb69b0f02566274e021018035c"]
+base_commit = "868c3a34e26f56fa36264293bbdf890485672f31"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+extractor_version = "0.0.0"
+extracted_on = "2026-11-21"
+
+[sha256]
+"base" = "c7ef2a7ed632117b6ab3516739894aa99a804288e5e0fb009304b62226d93a7b"
+"ours" = "c18cd495f87da9c5da5ac112f28c86e4a9dab187624cbc0904bbad794e77154f"
+"theirs" = "180857b2a6c2c942e8afa29c0b92a3c531619d0a9ac1c5f325ddfe3f7c60e5e1"
+"expected" = "8c22b09b075dd5b1a2016ec657ca9d47dec0215f04a6fa201dbd43dadf5247ea"
+"manifests/base/Cargo.toml" = "47baccc733814757a01ff7f43c2e336a5bfcb27bc9c10ba03df3b656c6d3dfe1"
+"manifests/ours/Cargo.toml" = "47baccc733814757a01ff7f43c2e336a5bfcb27bc9c10ba03df3b656c6d3dfe1"
+"manifests/theirs/Cargo.toml" = "b5a1ab9c57bd47f0ef9d7557ca142f47dc3352063f5a79176a837e2f027db62f"
