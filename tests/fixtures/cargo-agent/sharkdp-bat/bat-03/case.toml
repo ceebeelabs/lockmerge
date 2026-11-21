@@ -16,11 +16,12 @@ extracted_on = "2026-11-21"
 base = "checkout e118c20e4861dee2a7cdab1e5316ccffa3b29672"
 ours = ["cargo add sha2@=0.11.1", "cargo metadata --format-version 1"]
 theirs = ["cargo add md-5@=0.11.0", "cargo update -p digest --precise 0.11.2", "cargo metadata --format-version 1"]
-expected = ["cargo add sha2@=0.11.1", "cargo add md-5@=0.11.0", "cargo update -p digest --precise 0.11.2", "cargo metadata --format-version 1"]
+expected = ["cargo add sha2@=0.11.1", "cargo add md-5@=0.11.0", "cargo metadata --format-version 1"]
+expected_rule = "Owner rule (2026-11-21): when the two sides pick different versions of one crate, expected keeps the HIGHER version, whichever side is ours (rule M1; what a fresh cargo resolve picks). The expected recipe applies the lower choice first and the higher last, or omits a step that would only lower a version."
 
 [sha256]
 "base" = "034c8ebee7d40e5d8d0fa56c69c66332d5f2f1c1f2be816c7e55031551869a53"
-"expected" = "7e95a7d2e5951de6c404624d5b9dcfec23d3b1b26e77816a02e459b98c853db0"
+"expected" = "b612ab3967891b71fe0a61c9cf93ae71ecb7885556c77a910eb5e9c577cf328d"
 "manifests/base/Cargo.toml" = "323193b9ef39a75f67de8d7aa9d7c178e590dd044a7ae5846e83f9ac54f75ca9"
 "manifests/ours/Cargo.toml" = "4175befdfb6e203ef90c070fa2f17a58b21593be8fbbb6d9aff445d46885259b"
 "manifests/theirs/Cargo.toml" = "aac2621f465b795e6723255e29c1f5b3b5bd364799b211ca67aa24976989f5e6"

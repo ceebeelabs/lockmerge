@@ -16,11 +16,12 @@ extracted_on = "2026-11-21"
 base = "checkout 791efff6d74c66bee390c259e322626ca93aadb6"
 ours = ["cargo add sha2@=0.11.1 -p alacritty", "cargo metadata --format-version 1"]
 theirs = ["cargo add md-5@=0.11.0 -p alacritty_terminal", "cargo update -p digest --precise 0.11.2", "cargo metadata --format-version 1"]
-expected = ["cargo add sha2@=0.11.1 -p alacritty", "cargo add md-5@=0.11.0 -p alacritty_terminal", "cargo update -p digest --precise 0.11.2", "cargo metadata --format-version 1"]
+expected = ["cargo add sha2@=0.11.1 -p alacritty", "cargo add md-5@=0.11.0 -p alacritty_terminal", "cargo metadata --format-version 1"]
+expected_rule = "Owner rule (2026-11-21): when the two sides pick different versions of one crate, expected keeps the HIGHER version, whichever side is ours (rule M1; what a fresh cargo resolve picks). The expected recipe applies the lower choice first and the higher last, or omits a step that would only lower a version."
 
 [sha256]
 "base" = "ffaf095c1bfa609f23edb8a83da241918918ec41257000a4d6c0461b3192d2f6"
-"expected" = "4cca8cb0d4fdd375f6a43b05a252c3836f81d7b18016903d1a3cfce09ff4a94e"
+"expected" = "44654d437f525d6f57a92cfcb3c3d05d44aea6d05d2d1f8ecfd781e352a87492"
 "manifests/base/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
 "manifests/base/alacritty/Cargo.toml" = "0ca308ce8bb5407206b4cd0c6f4ecd429755e9f433ea598afc4970684ec0d7e4"
 "manifests/base/alacritty_config/Cargo.toml" = "24517b5567f9026fdc0b9d3bf42ac3d0f9ea3473219bc304ba387bc12d1a4788"

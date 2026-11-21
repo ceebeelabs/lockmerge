@@ -1,0 +1,41 @@
+repository = "https://github.com/alacritty/alacritty.git"
+license = "MIT OR Apache-2.0"
+base_commit = "791efff6d74c66bee390c259e322626ca93aadb6"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+shape = "add-crate-and-bump-it-differently"
+intent = "merge-higher"
+built_by = "owner-side synth, docs/02-oracle.md section 6.3; ADR 0007 rule 4 exception"
+cargo_version = "cargo 1.96.0 (30a34c682 2026-05-25)"
+extracted_on = "2026-11-21"
+
+[recipe]
+base = "checkout 791efff6d74c66bee390c259e322626ca93aadb6"
+ours = ["cargo add itoa@=1.0.19 -p alacritty", "cargo metadata --format-version 1"]
+theirs = ["cargo update -p itoa --precise 1.0.17", "cargo metadata --format-version 1"]
+expected = ["cargo update -p itoa --precise 1.0.17", "cargo add itoa@=1.0.19 -p alacritty", "cargo metadata --format-version 1"]
+expected_rule = "Owner rule (2026-11-21): when the two sides pick different versions of one crate, expected keeps the HIGHER version, whichever side is ours (rule M1; what a fresh cargo resolve picks). The expected recipe applies the lower choice first and the higher last, or omits a step that would only lower a version."
+
+[sha256]
+"base" = "ffaf095c1bfa609f23edb8a83da241918918ec41257000a4d6c0461b3192d2f6"
+"expected" = "739b6a3b73a49ff997a53108b3bbd4e562b28a746a395b1556c4154b9239be0c"
+"manifests/base/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
+"manifests/base/alacritty/Cargo.toml" = "0ca308ce8bb5407206b4cd0c6f4ecd429755e9f433ea598afc4970684ec0d7e4"
+"manifests/base/alacritty_config/Cargo.toml" = "24517b5567f9026fdc0b9d3bf42ac3d0f9ea3473219bc304ba387bc12d1a4788"
+"manifests/base/alacritty_config_derive/Cargo.toml" = "ed428391b16633a4f0f69a661701125bec852c72d0e7adfccb9f3efef5f4e523"
+"manifests/base/alacritty_terminal/Cargo.toml" = "d8b5f075f534d08e94a42c3c291ce107f16964022db7a564d576c094647cbaf9"
+"manifests/ours/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
+"manifests/ours/alacritty/Cargo.toml" = "eadff4f78ab0fb4bb5eb3deb024f777a60b7e78742b4f1b665667c818d22f623"
+"manifests/ours/alacritty_config/Cargo.toml" = "24517b5567f9026fdc0b9d3bf42ac3d0f9ea3473219bc304ba387bc12d1a4788"
+"manifests/ours/alacritty_config_derive/Cargo.toml" = "ed428391b16633a4f0f69a661701125bec852c72d0e7adfccb9f3efef5f4e523"
+"manifests/ours/alacritty_terminal/Cargo.toml" = "d8b5f075f534d08e94a42c3c291ce107f16964022db7a564d576c094647cbaf9"
+"manifests/theirs/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
+"manifests/theirs/alacritty/Cargo.toml" = "0ca308ce8bb5407206b4cd0c6f4ecd429755e9f433ea598afc4970684ec0d7e4"
+"manifests/theirs/alacritty_config/Cargo.toml" = "24517b5567f9026fdc0b9d3bf42ac3d0f9ea3473219bc304ba387bc12d1a4788"
+"manifests/theirs/alacritty_config_derive/Cargo.toml" = "ed428391b16633a4f0f69a661701125bec852c72d0e7adfccb9f3efef5f4e523"
+"manifests/theirs/alacritty_terminal/Cargo.toml" = "d8b5f075f534d08e94a42c3c291ce107f16964022db7a564d576c094647cbaf9"
+"ours" = "739b6a3b73a49ff997a53108b3bbd4e562b28a746a395b1556c4154b9239be0c"
+"theirs" = "4d0c7bf69115da121f50b7b5dd063775369a7ad4d0c6921a3771168609a4124a"
