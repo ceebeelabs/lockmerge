@@ -53,6 +53,14 @@ pub struct ManifestFile {
     pub bytes: Vec<u8>,
 }
 
+/// One file of the case's registry index cache: `index/<index directory>/<path>`
+/// is saved here as `rel` = `<index directory>/<path>`, the layout of the
+/// testkit's `FakeIndex`.
+pub struct IndexFile {
+    pub rel: String,
+    pub bytes: Vec<u8>,
+}
+
 pub struct Meta {
     pub repository: String,
     pub license: String,
@@ -75,6 +83,8 @@ pub struct Case {
     pub theirs: Vec<u8>,
     pub expected: Vec<u8>,
     pub manifests: Vec<ManifestFile>,
+    /// The registry index cache of the case; empty when the case has none.
+    pub index: Vec<IndexFile>,
     /// Integrity failures found while loading: a hash that differs, a file
     /// that is not listed or is missing, a license outside the list.
     pub problems: Vec<String>,
@@ -226,6 +236,7 @@ pub fn load_case(ecosystem: &str, id: &str, dir: &Path) -> Result<Case, String> 
     let expected = take("expected")?;
 
     let mut manifests = Vec::new();
+    let mut index = Vec::new();
     for (rel, bytes) in contents {
         let mut parts = rel.splitn(3, '/');
         match (parts.next(), parts.next(), parts.next()) {
@@ -236,6 +247,10 @@ pub fn load_case(ecosystem: &str, id: &str, dir: &Path) -> Result<Case, String> 
                     bytes,
                 })
             }
+            (Some("index"), Some(_), Some(_)) => index.push(IndexFile {
+                rel: rel["index/".len()..].to_string(),
+                bytes,
+            }),
             _ => problems.push(format!("{id}: unexpected file `{rel}`")),
         }
     }
@@ -248,6 +263,7 @@ pub fn load_case(ecosystem: &str, id: &str, dir: &Path) -> Result<Case, String> 
         theirs,
         expected,
         manifests,
+        index,
         problems,
     })
 }

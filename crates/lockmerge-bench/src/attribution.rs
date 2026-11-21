@@ -124,9 +124,10 @@ pub fn attribute(formats: &[&dyn Format], case: &Case) -> Result<Option<Attribut
         return Ok(None);
     };
     let manifests = SavedManifests { case };
-    // The same cache the driver reads when git runs it, so the in-process
-    // merge and the driver's agree.
-    let index = lockmerge_env::CargoHome::from_env();
+    // The same cache the replay gives the driver: the case's own, never the
+    // machine's, so the in-process merge and the driver's agree.
+    let home = crate::replay::case_cargo_home(case)?;
+    let index = lockmerge_env::CargoHome::new(home.path());
     let cx = Context::new(&manifests).with_index(&index);
     let inputs = Inputs {
         base: &case.base,

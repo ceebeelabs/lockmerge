@@ -194,6 +194,15 @@ each case in a throwaway repository:
 4. Repeat both runs with the sides swapped: check out `theirs` and merge
    `ours` (the swap check).
 
+The registry index cache that the native-links proof (R15) reads comes only
+from the case. The replay runs every merge with `CARGO_HOME` set to a fresh
+temporary directory whose `registry/index/` holds the case's `index/` files
+(`index/<index directory>/<path>`, the layout of the testkit's fake index), or
+nothing when the case has none; the user's `~/.cargo` and the outer
+`CARGO_HOME` are never read. A case without `index/` therefore refuses R15
+wherever the proof is needed, on every machine. The in-process attribution
+uses the same directory.
+
 Real git decides which paths reach a driver, so a lockfile git resolves without
 a content merge never reaches lockmerge, and the harness sees that too.
 
