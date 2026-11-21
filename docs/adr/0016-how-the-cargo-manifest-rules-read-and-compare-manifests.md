@@ -1,7 +1,7 @@
 # 0016. How the Cargo manifest rules read and compare manifests
 
-- Status: Proposed
-- Date: 2026-11-20
+- Status: Accepted
+- Date: 2026-11-21
 
 ## Context
 
