@@ -638,10 +638,17 @@ assumed zlib shrinks lockfiles about 5x and delta packing removes most of the
 near-copies; I measured neither, and have not re-estimated them. A lower raw
 total can only lower them.
 
-**Enforcement.** `lockmerge-bench check` sums the bytes of every file under each
-ecosystem directory and fails if one is over its budget (cargo 50 MB,
-cargo-agent 15 MB, uv 35 MB; pnpm has none until it is planned) or if the total
-is over 100 MB. The figures live in `crates/lockmerge-bench/src/gate.rs` and a
+**Enforcement.** The budget bounds repository growth, and git stores identical
+file contents once, so `lockmerge-bench check` counts each distinct file content
+once per corpus (per ecosystem directory), by SHA-256 of the bytes. It fails if
+a corpus's deduplicated size is over its budget (cargo 50 MB, cargo-agent
+15 MB, uv 35 MB; pnpm has none until it is planned) or if the sum of the
+deduplicated sizes is over 100 MB. Contents shared between two corpora count
+once in each. The report prints both the deduplicated size checked against the
+budget and the raw on-disk size, and the failure message names the
+deduplicated size. (The trimmed registry index files of the agent-style corpus
+are the reason: thousands of files hold few distinct contents.) `extract` has
+no budget accounting of its own; it caps cases and `max_file_bytes`. The figures live in `crates/lockmerge-bench/src/gate.rs` and a
 test checks that they add up. To keep a corpus small: cap cases per repository
 and `max_file_bytes` in `sources.toml`; prefer conflict cases and varied kinds;
 never store derived files.
