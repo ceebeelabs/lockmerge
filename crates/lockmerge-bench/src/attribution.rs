@@ -9,7 +9,9 @@
 use crate::case::Case;
 use crate::classify::Run;
 use crate::util::{TempDir, git_isolated, run};
-use lockmerge_core::{Context, Format, Inputs, ManifestResult, Manifests, Outcome, Report, Why};
+use lockmerge_core::{
+    Context, Format, Inputs, ManifestResult, Manifests, Outcome, Report, Role, Why,
+};
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -45,6 +47,17 @@ impl SavedManifests<'_> {
 }
 
 impl Manifests for SavedManifests<'_> {
+    fn side(&self, role: Role, repo_path: &str) -> Result<Vec<u8>, Why> {
+        let name = match role {
+            Role::Base => "base",
+            Role::Ours => "ours",
+            Role::Theirs => "theirs",
+        };
+        self.side(name, repo_path)
+            .map(<[u8]>::to_vec)
+            .ok_or_else(|| Why(format!("`{repo_path}` is not saved on {name}")))
+    }
+
     fn merged(&self, repo_path: &str) -> ManifestResult {
         let (Some(b), Some(o), Some(t)) = (
             self.side("base", repo_path),

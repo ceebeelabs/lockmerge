@@ -1,0 +1,10 @@
+[package]
+name = "wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+legacy = ["rand/min_const_gen"]
+
+[dependencies]
+rand = { version = "0.8", default-features = false }

@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours adds the registry crate y, which depends on serde 1.0.101, to app; theirs is higher and has no y."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R3"

@@ -111,6 +111,19 @@ through a changed indirect dependent (`wrapper` 1.1.0 on ours newly enabling
 show on one side is caught by M1 condition e where manifests exist, and in the
 fallback by refusing M1 whenever a path package exists.
 
+*What "equal" means in C(i) and M1 e* (as implemented). The `[features]`
+tables, the resolver and the edition are equal, and so is every dependency
+declaration of the root manifest and of every path package, compared without
+its version requirement (that is B1's and M1 a's business): `package`, source,
+`features`, `default-features`, `optional`, after `workspace = true`
+inheritance. Two differences, which only the other branch can have made, are
+allowed: a declaration the side lacks that selects nothing (no `features`,
+default features, not optional), is a registry dependency and names a crate
+the side's lockfile does not contain (the format document's own B1 accept case
+adds such a dependency to another member); and a declaration the side has,
+equal to base's, that the merged manifest lacks (the other branch removed it,
+which only withdraws a request).
+
 **D. No downgrades.** A registry or git crate whose chosen version is lower than
 its version in base is refused. A lower version can lack a feature the merged
 manifest enables on the other side (base rand 0.8.4 with `min_const_gen` enabled
@@ -266,6 +279,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
 - R15. A registry or git id added only by ours and a different registry or git id added only by theirs, and either side's id is a git source, or the `links` proof (4.5) fails: the cache is absent, unreadable or in a format we cannot read exactly; an id has no entry, or its checksum differs from the entry's; any git source id is in the merged set; a path package's `links` cannot be read; or two packages share a `links` value. Examples: ours adds git crate `native-a` to member a and theirs git crate `native-b` to member b, both `links = "sqlite3"` (always refused); ours adds `libgit2-sys` 0.11 and theirs 0.12 (both `links = "git2"`), or ours adds `libsqlite3-sys` and theirs `sqlite3-src` (both `links = "sqlite3"`).
+- Codes of the manifest rules in `lockmerge-cargo` that the list above does not number: `DOWNGRADE` (rule D), `FEATURES` (rules C and F: the merged manifests may select features the taken entry was not resolved with, or the entry lacks a dependency another version has) and `REQUIREMENT` (rule B1: a merged path manifest does not admit the version taken). When M1's conditions fail the refusal is R3; when M2's fail, R6.
 - R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
 Neighbors that **merge** (each needs its own test): both sides add the same
@@ -344,6 +358,18 @@ exactly one manifest with the same `name` and `version` (`version.workspace =
 true` resolves against `[workspace.package]`; anything unreadable is R14). All
 members must map, in all three lockfiles; else R14 for the whole file.
 
+Implementation (`lockmerge-cargo`, #37). The format reads manifests through
+`lockmerge_core::Manifests`, which has no directory listing, so a `members`
+entry is read as a literal path or as `<directory>/*`, where each candidate is
+the directory named like a path package of the lockfiles (its manifest must
+hold that package name); `exclude` must be literal. Any other glob, an
+unlisted member, a `[patch]` or `[replace]` table, a dependency key not read
+(`registry`, `artifact`, `default_features`, ...) and a path that leaves the
+repository are unread: R14. A member removed on one side has no merged
+manifest, so the manifest rules refuse for that file (R14). Rules that compare
+against what a side was resolved with (M1 e, C) read that side's own manifest
+through `Manifests::side`, which the driver answers from the side's commit.
+
 **Registry index cache (links proof).** The one input besides git objects. Only
 when R15's trigger holds (4.4), the driver reads, read-only and offline, Cargo's
 local registry index cache under `CARGO_HOME` (default `~/.cargo`),
@@ -385,7 +411,7 @@ no manifest (V6's proof reads the registry index cache; without it, R15 refuses)
 | --- | --- | --- |
 | M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | derive enabled only on the lower side; extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
 | M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
-| D | other side's feature change, one-sided upgrade 0.8.4 to 0.8.5 | one-sided downgrade to 0.8.3 |
+| D | neither side changes a feature declaration, one-sided upgrade 0.8.4 to 0.8.5 (with another branch's feature change C refuses even an upgrade, as C(i) says) | one-sided downgrade to 0.8.3 |
 | F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
 | V6 | cache present, both added crates links-free; or only one side adds a crate | shared `links` (`libsqlite3-sys` and `sqlite3-src`); checksum mismatch; cache absent; unknown cache format |
 | C | cross-class upgrade when the other side changed no feature selection | other side enables a feature the new class lacks; direct forwarding (`legacy = ["rand/min_const_gen"]`) and bridge forwarding (`legacy = ["bridge/legacy"]`) with rand 0.8 to 0.9; manifests unavailable |

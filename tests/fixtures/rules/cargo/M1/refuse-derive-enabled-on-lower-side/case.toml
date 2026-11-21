@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours enables features = ['derive'] on serde in cli, which adds serde_derive to its lockfile; theirs moves to the higher 1.0.102 without it."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R3"

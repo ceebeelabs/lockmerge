@@ -1,0 +1,10 @@
+[package]
+name = "wrapper"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+legacy = ["bridge/legacy"]
+
+[dependencies]
+bridge = "1"

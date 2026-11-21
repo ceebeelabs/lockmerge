@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours enables features = ['std'] on serde in cli; that adds no package, so its lockfile shows nothing. The merged manifest selects a feature the higher side's lockfile was not resolved with."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R3"
