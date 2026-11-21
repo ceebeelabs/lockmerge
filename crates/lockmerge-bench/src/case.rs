@@ -297,19 +297,98 @@ pub fn case_dirs(eco_dir: &Path) -> Result<Vec<(String, PathBuf)>, String> {
     Ok(out)
 }
 
-/// Total bytes of every file under `dir` (for the size budget).
-pub fn tree_bytes(dir: &Path) -> Result<u64, String> {
-    let mut total = 0;
+/// The size of one corpus directory, two ways.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TreeSize {
+    /// Bytes with each distinct file content counted once. Git stores
+    /// identical contents once, so this is what the size budget bounds.
+    pub unique: u64,
+    /// Bytes of every file on disk.
+    pub raw: u64,
+}
+
+/// Size of every file under `dir`: each distinct content (by SHA-256) counts
+/// once in `unique`; `raw` counts every file.
+pub fn tree_size(dir: &Path) -> Result<TreeSize, String> {
+    let mut seen = std::collections::HashSet::new();
+    let mut size = TreeSize::default();
     for path in walk(dir)?.values() {
-        total += fs::metadata(path).map_err(|e| e.to_string())?.len();
+        let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let len = bytes.len() as u64;
+        size.raw += len;
+        if seen.insert(sha256_hex(&bytes)) {
+            size.unique += len;
+        }
     }
-    Ok(total)
+    Ok(size)
+}
+
+/// The failure message for a corpus over `budget`, or `None`. The budget is
+/// checked against the deduplicated size; the message names it and the raw size.
+pub fn over_budget(what: &str, size: TreeSize, budget: u64) -> Option<String> {
+    (size.unique > budget).then(|| {
+        format!(
+            "{what}: fixtures take {} bytes deduplicated ({} bytes on disk), over the budget of {budget}",
+            size.unique, size.raw
+        )
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::util::TempDir;
+
+    #[test]
+    fn identical_contents_count_once_in_the_unique_size() {
+        let tmp = TempDir::new("dedup").unwrap();
+        fs::create_dir_all(tmp.path().join("a")).unwrap();
+        fs::create_dir_all(tmp.path().join("b")).unwrap();
+        fs::write(tmp.path().join("a/f"), b"12345").unwrap();
+        fs::write(tmp.path().join("b/g"), b"12345").unwrap();
+        let s = tree_size(tmp.path()).unwrap();
+        assert_eq!(s, TreeSize { unique: 5, raw: 10 });
+    }
+
+    #[test]
+    fn distinct_contents_of_equal_length_count_separately() {
+        let tmp = TempDir::new("distinct").unwrap();
+        fs::write(tmp.path().join("f"), b"12345").unwrap();
+        fs::write(tmp.path().join("g"), b"12346").unwrap();
+        fs::write(tmp.path().join("h"), b"123").unwrap();
+        let s = tree_size(tmp.path()).unwrap();
+        assert_eq!(
+            s,
+            TreeSize {
+                unique: 13,
+                raw: 13
+            }
+        );
+    }
+
+    #[test]
+    fn the_budget_failure_names_the_deduplicated_size() {
+        let size = TreeSize {
+            unique: 60,
+            raw: 900,
+        };
+        let msg = over_budget("cargo", size, 50).unwrap();
+        assert!(msg.contains("60 bytes deduplicated"), "{msg}");
+        assert!(msg.contains("900 bytes on disk"), "{msg}");
+        assert!(msg.contains("budget of 50"), "{msg}");
+        // The raw size alone never fails a corpus whose unique size fits.
+        assert_eq!(
+            over_budget(
+                "cargo",
+                TreeSize {
+                    unique: 50,
+                    raw: 900
+                },
+                50
+            ),
+            None
+        );
+    }
 
     pub(crate) fn write_case(dir: &Path, tamper: bool) {
         fs::create_dir_all(dir.join("manifests/base")).unwrap();
