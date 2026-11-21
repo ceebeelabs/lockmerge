@@ -492,7 +492,10 @@ fn the_refusals_hold_with_the_sides_swapped() {
         let case = load(rule, name);
         let report = merge_swapped(&case);
         let Outcome::Refused(r) = &report.outcome else {
-            panic!("{rule}/{name} with the sides swapped was merged");
+            panic!(
+                "{rule}/{name} with the sides swapped was merged: {:?}",
+                report.applied
+            );
         };
         assert_eq!(r.code.to_string(), code, "{rule}/{name}");
     }

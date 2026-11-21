@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool, with wrapper an excluded path dependency of app, and registry crates; checksums are synthetic. wrapper is excluded, declares rand = '>=0.8,<0.10' without default features, legacy = ['rand/min_const_gen'] and a dev-dependency itoa that tool already uses. Ours moves rand to 0.9.0; theirs promotes wrapper into the workspace, which adds its itoa edge. Cargo resolves the features of every member, and rand 0.9.0 has no min_const_gen."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.FEATURES"
