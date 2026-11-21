@@ -124,7 +124,10 @@ pub fn attribute(formats: &[&dyn Format], case: &Case) -> Result<Option<Attribut
         return Ok(None);
     };
     let manifests = SavedManifests { case };
-    let cx = Context::new(&manifests);
+    // The same cache the driver reads when git runs it, so the in-process
+    // merge and the driver's agree.
+    let index = lockmerge_env::CargoHome::from_env();
+    let cx = Context::new(&manifests).with_index(&index);
     let inputs = Inputs {
         base: &case.base,
         ours: &case.ours,

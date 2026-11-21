@@ -18,6 +18,7 @@ path = "src/main.rs"
 [dependencies]
 lockmerge-core = { path = "../lockmerge-core" }
 lockmerge-cargo = { path = "../lockmerge-cargo" }
+lockmerge-env = { path = "../lockmerge-env" }
 # SHA-256 of fixtures (ADR 0006). MIT OR Apache-2.0.
 sha2 = "0.10"
 # Read-only TOML parsing of case.toml, baseline.toml and the Cargo oracle

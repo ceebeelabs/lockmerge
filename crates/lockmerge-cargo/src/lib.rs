@@ -13,9 +13,12 @@
 //!
 //! - The manifest rules (M1 to M3, B1, C, D, F) read `Cargo.toml` through
 //!   [`lockmerge_core::Manifests`] ([`manifest`], [`find`]) and refuse with R14
-//!   when a manifest is unavailable or not read exactly. The native-links
-//!   proof (R15) is not part of this crate yet: different packages added by
-//!   each side are refused with R15.
+//!   when a manifest is unavailable or not read exactly.
+//! - The native-links proof (V6, refused as R15) reads Cargo's registry index
+//!   cache through [`lockmerge_core::IndexCache`] ([`index`], pinned in
+//!   `docs/formats/cargo-registry-index.md`) when each side added different
+//!   registry crates. A git or path package among the added ones, an absent
+//!   cache or an entry not read exactly is refused with R15.
 //!
 //! Unchanged inputs are returned byte for byte by the engine (`core.S1`)
 //! before any parsing.
@@ -24,6 +27,7 @@
 
 mod codes;
 pub mod find;
+pub mod index;
 pub mod manifest;
 mod merge;
 pub mod model;

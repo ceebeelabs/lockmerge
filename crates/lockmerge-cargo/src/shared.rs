@@ -8,7 +8,7 @@ use crate::manifest::Unread;
 use crate::model::{Id, Lock};
 use lockmerge_core::{Context, Role};
 use semver::Version;
-use std::cell::{OnceCell, RefCell};
+use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::BTreeSet;
 
 pub const ROLES: [Role; 3] = [Role::Base, Role::Ours, Role::Theirs];
@@ -55,6 +55,9 @@ pub struct Shared {
     /// Packages removed on one side and changed on the other that M3 may
     /// still prune; one left in the merged set is an R5 refusal.
     pub pending: RefCell<BTreeSet<Id>>,
+    /// The envelope found registry crates added by each side that were never
+    /// resolved together: `validate` must then prove their `links` (V6).
+    pub links_proof: Cell<bool>,
 }
 
 fn other(role: Role) -> Role {
@@ -82,6 +85,7 @@ impl Shared {
             reach: OnceCell::new(),
             groups: RefCell::new(Vec::new()),
             pending: RefCell::new(BTreeSet::new()),
+            links_proof: Cell::new(false),
         }
     }
 

@@ -47,15 +47,37 @@ pub trait Manifests {
     }
 }
 
+/// Read-only access to the files of Cargo's local registry index cache
+/// (`registry/index/` under `CARGO_HOME`). Implemented by `lockmerge-env`, and
+/// by a fake in the testkit. It decides nothing: the format reads the bytes.
+pub trait IndexCache {
+    /// The bytes of the file at `rel_path` (relative to an index directory) in
+    /// each directory of `registry/index/` that has it. Empty if the cache is
+    /// absent or unreadable, which makes the format refuse.
+    fn files(&self, rel_path: &str) -> Vec<Vec<u8>>;
+}
+
 /// What the engine hands to a format besides the inputs.
 #[derive(Clone, Copy)]
 pub struct Context<'a> {
     pub manifests: &'a dyn Manifests,
+    /// The registry index cache, if the caller provides one. A format that
+    /// needs it refuses when it is `None`.
+    pub index: Option<&'a dyn IndexCache>,
 }
 
 impl<'a> Context<'a> {
     pub fn new(manifests: &'a dyn Manifests) -> Self {
-        Self { manifests }
+        Self {
+            manifests,
+            index: None,
+        }
+    }
+
+    /// The same context with a registry index cache.
+    pub fn with_index(mut self, index: &'a dyn IndexCache) -> Self {
+        self.index = Some(index);
+        self
     }
 
     /// Makes a [`Proof`] for `rule` with the facts it relied on. This is the
