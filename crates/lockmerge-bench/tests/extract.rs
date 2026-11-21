@@ -7,6 +7,7 @@ use lockmerge_bench::extract::{ExtractOpts, extract};
 use lockmerge_bench::oracle::CargoOracle;
 use lockmerge_bench::scan::{Source, ensure_clone, survey};
 use lockmerge_bench::util::{TempDir, git_isolated, run};
+use lockmerge_cargo::index::parse_entry;
 use std::cell::Cell;
 use std::collections::BTreeMap;
 use std::fs;
@@ -663,8 +664,27 @@ fn survey_counts_the_plain_git_conflicts() {
     assert!(line.contains("plain git conflicts 3"), "{line}");
 }
 
+/// One record of a cache file, in the layout of
+/// docs/formats/cargo-registry-index.md section 3.
+fn rec(name: &str, vers: &str) -> Vec<u8> {
+    format!(
+        "{vers}\0{{\"name\":\"{name}\",\"vers\":\"{vers}\",\"cksum\":\"{name}\",\"links\":null,\"v\":2}}\0"
+    )
+    .into_bytes()
+}
+
+fn cache_file(etag: &str, records: &[Vec<u8>]) -> Vec<u8> {
+    let mut b = format!("\x03\x02\0\0\0etag: {etag}\0").into_bytes();
+    for r in records {
+        b.extend_from_slice(r);
+    }
+    b
+}
+
 /// A fake CARGO_HOME with two index directories. `pa`, `pc` and `pd` have
-/// entries (`pa` in both directories), `zz` is in no lockfile, `pb` has none.
+/// files (`pa` in both directories), `zz` is in no lockfile, `pb` has none.
+/// The lockfiles use version 1.0.0 only, so the other records are cut. `pc`
+/// is not in the pinned layout and `pd` has no record of 1.0.0.
 fn fake_cargo_home() -> TempDir {
     let home = TempDir::new("cargo-home").unwrap();
     let put = |dir: &str, rel: &str, bytes: &[u8]| {
@@ -677,55 +697,122 @@ fn fake_cargo_home() -> TempDir {
         fs::create_dir_all(p.parent().unwrap()).unwrap();
         fs::write(p, bytes).unwrap();
     };
-    put("idx-1", "2/pa", b"\x03\x02\0\0\0etag: 1\0pa-one\0");
-    put("idx-2", "2/pa", b"\x03\x02\0\0\0etag: 2\0pa-two\0");
+    let three =
+        |n: &str, e: &str| cache_file(e, &[rec(n, "0.9.0"), rec(n, "1.0.0"), rec(n, "2.0.0")]);
+    put("idx-1", "2/pa", &three("pa", "1"));
+    put("idx-2", "2/pa", &three("pa", "2"));
     put("idx-1", "2/pc", b"\x03\x02\0\0\0etag: 1\0pc\0\xff");
-    put("idx-1", "2/pd", b"pd");
-    put("idx-1", "2/zz", b"zz");
+    put("idx-1", "2/pd", &cache_file("1", &[rec("pd", "0.9.0")]));
+    put("idx-1", "2/zz", &three("zz", "1"));
     home
 }
 
 #[test]
-fn extract_saves_the_index_entries_of_the_registry_packages_byte_for_byte() {
+fn extract_saves_trimmed_index_files_with_the_records_of_the_lockfile_versions() {
     let (repo, m) = scenario();
     let home = fake_cargo_home();
     let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
     let mut o = opts(&out, &cache);
     o.cargo_home = Some(home.path().to_path_buf());
     let summary = extract(&source(&repo, 10), &o).unwrap();
-    // `pb` has no entry: said, not saved.
-    assert!(summary.contains("not in the index cache"), "{summary}");
+    // `pb` has no file, `pc` is unreadable and `pd` has no record of its
+    // version: said, not saved.
+    assert!(
+        summary.contains("registry package entries not in the index cache"),
+        "{summary}"
+    );
 
     let dir = case_dir(&out, &m["reachable"]);
     let saved = |rel: &str| fs::read(dir.join("index").join(rel)).ok();
-    assert_eq!(
-        saved("idx-1/.cache/2/pa").unwrap(),
-        b"\x03\x02\0\0\0etag: 1\0pa-one\0"
-    );
-    assert_eq!(
-        saved("idx-2/.cache/2/pa").unwrap(),
-        b"\x03\x02\0\0\0etag: 2\0pa-two\0"
-    );
-    assert_eq!(
-        saved("idx-1/.cache/2/pc").unwrap(),
-        b"\x03\x02\0\0\0etag: 1\0pc\0\xff"
-    );
-    assert_eq!(saved("idx-1/.cache/2/pd").unwrap(), b"pd");
+    let one = |n: &str, e: &str| cache_file(e, &[rec(n, "1.0.0")]);
+    assert_eq!(saved("idx-1/.cache/2/pa").unwrap(), one("pa", "1"));
+    assert_eq!(saved("idx-2/.cache/2/pa").unwrap(), one("pa", "2"));
     // Neighbors that must not be saved: a crate of no lockfile, a crate
-    // with no entry.
+    // with no file, an unreadable file, a file without the lockfile version.
     assert!(saved("idx-1/.cache/2/zz").is_none());
     assert!(saved("idx-1/.cache/2/pb").is_none());
+    assert!(saved("idx-1/.cache/2/pc").is_none());
+    assert!(saved("idx-1/.cache/2/pd").is_none());
 
-    // The recorded hashes cover the entries, and the case loads.
+    // The recorded hashes cover the files, and the case loads.
     let c = load_case("cargo", "cargo/t-repo/x", &dir).unwrap();
     assert!(c.problems.is_empty(), "{:?}", c.problems);
-    assert_eq!(c.index.len(), 4);
+    assert_eq!(c.index.len(), 2);
     assert!(c.index.iter().any(|f| f.rel == "idx-1/.cache/2/pa"));
 
+    // The reduction is labeled: the original's SHA-256 and the versions kept,
+    // next to the SHA-256 of the saved file.
+    let toml: DocumentMut = fs::read_to_string(dir.join("case.toml"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    let reds = toml["index_reduction"].as_array_of_tables().unwrap();
+    assert_eq!(reds.len(), 2);
+    let r = reds
+        .iter()
+        .find(|t| t["file"].as_str() == Some("index/idx-1/.cache/2/pa"))
+        .unwrap();
+    assert_eq!(
+        r["original_sha256"].as_str().unwrap(),
+        lockmerge_bench::util::sha256_hex(&cache_file(
+            "1",
+            &[rec("pa", "0.9.0"), rec("pa", "1.0.0"), rec("pa", "2.0.0")]
+        ))
+    );
+    let kept: Vec<&str> = r["versions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|v| v.as_str())
+        .collect();
+    assert_eq!(kept, ["1.0.0"]);
+    assert_eq!(
+        toml["sha256"]["index/idx-1/.cache/2/pa"].as_str().unwrap(),
+        lockmerge_bench::util::sha256_hex(&one("pa", "1"))
+    );
+
     // A changed byte fails the recorded hash.
-    fs::write(dir.join("index/idx-1/.cache/2/pd"), b"pD").unwrap();
+    fs::write(dir.join("index/idx-1/.cache/2/pa"), b"pD").unwrap();
     let c = load_case("cargo", "cargo/t-repo/x", &dir).unwrap();
-    assert!(c.problems.iter().any(|p| p.contains("idx-1/.cache/2/pd")));
+    assert!(c.problems.iter().any(|p| p.contains("idx-1/.cache/2/pa")));
+}
+
+#[test]
+fn the_trimmed_file_parses_like_the_original_for_every_kept_version() {
+    let (repo, m) = scenario();
+    let home = fake_cargo_home();
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    let mut o = opts(&out, &cache);
+    o.cargo_home = Some(home.path().to_path_buf());
+    extract(&source(&repo, 10), &o).unwrap();
+    let dir = case_dir(&out, &m["reachable"]);
+    let original = fs::read(home.path().join("registry/index/idx-1/.cache/2/pa")).unwrap();
+    let trimmed = fs::read(dir.join("index/idx-1/.cache/2/pa")).unwrap();
+    let all = parse_entry(&original).unwrap();
+    let few = parse_entry(&trimmed).unwrap();
+    // Identical records for the kept version; the others are absent.
+    assert_eq!(few.len(), 1);
+    assert_eq!(few[0], *all.iter().find(|r| r.version == "1.0.0").unwrap());
+    assert!(few[0].summary().is_ok());
+    assert!(
+        few.iter()
+            .all(|r| r.version != "0.9.0" && r.version != "2.0.0")
+    );
+    // The header is unchanged, and the file is smaller.
+    let header = b"\x03\x02\0\0\0etag: 1\0";
+    assert!(trimmed.starts_with(header) && original.starts_with(header));
+    assert!(trimmed.len() < original.len());
+    // The lookup R15 makes gives the same answer on both.
+    let want = lockmerge_cargo::index::lookup(&[original], "pa", "1.0.0", "pa");
+    assert_eq!(
+        lockmerge_cargo::index::lookup(std::slice::from_ref(&trimmed), "pa", "1.0.0", "pa"),
+        want
+    );
+    // A version that was cut is no longer found.
+    assert!(matches!(
+        lockmerge_cargo::index::lookup(&[trimmed], "pa", "2.0.0", "pa"),
+        lockmerge_cargo::index::IndexLookup::Unavailable(_)
+    ));
 }
 
 #[test]
