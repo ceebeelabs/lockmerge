@@ -1,0 +1,26 @@
+name: bench
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    name: bench
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      # Offline: reads committed fixtures and spawns only git and the lockmerge
+      # binary in temporary repositories (docs/02-oracle.md section 7).
+      # The driver binary does not exist until lockmerge-cli lands (#34); with
+      # an empty corpus no case is replayed, so none is needed yet.
+      - name: Build
+        run: cargo build --workspace
+      - name: Check the benchmark
+        run: cargo run -p lockmerge-bench -- check --fixtures tests/fixtures
