@@ -1,7 +1,7 @@
 # 0015. R15 is a whole-file refusal
 
-- Status: Proposed
-- Date: 2026-11-20
+- Status: Accepted
+- Date: 2026-11-21
 
 ## Context
 
