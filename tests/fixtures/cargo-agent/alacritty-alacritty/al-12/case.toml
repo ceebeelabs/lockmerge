@@ -1,0 +1,40 @@
+repository = "https://github.com/alacritty/alacritty.git"
+license = "MIT OR Apache-2.0"
+base_commit = "791efff6d74c66bee390c259e322626ca93aadb6"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+shape = "different-crates-different-members"
+intent = "merge"
+built_by = "owner-side synth, docs/02-oracle.md section 6.3; ADR 0007 rule 4 exception"
+cargo_version = "cargo 1.96.0 (30a34c682 2026-05-25)"
+extracted_on = "2026-11-21"
+
+[recipe]
+base = "checkout 791efff6d74c66bee390c259e322626ca93aadb6"
+ours = ["cargo add csv@=1.4.0 -p alacritty_config", "cargo metadata --format-version 1"]
+theirs = ["cargo add uuid@=1.29.3 -p alacritty", "cargo metadata --format-version 1"]
+expected = ["cargo add csv@=1.4.0 -p alacritty_config", "cargo add uuid@=1.29.3 -p alacritty", "cargo metadata --format-version 1"]
+
+[sha256]
+"base" = "ffaf095c1bfa609f23edb8a83da241918918ec41257000a4d6c0461b3192d2f6"
+"expected" = "12492e6517289d07a7a7e706d7ef114c51ecab029599337068907e4908f68ef1"
+"manifests/base/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
+"manifests/base/alacritty/Cargo.toml" = "0ca308ce8bb5407206b4cd0c6f4ecd429755e9f433ea598afc4970684ec0d7e4"
+"manifests/base/alacritty_config/Cargo.toml" = "24517b5567f9026fdc0b9d3bf42ac3d0f9ea3473219bc304ba387bc12d1a4788"
+"manifests/base/alacritty_config_derive/Cargo.toml" = "ed428391b16633a4f0f69a661701125bec852c72d0e7adfccb9f3efef5f4e523"
+"manifests/base/alacritty_terminal/Cargo.toml" = "d8b5f075f534d08e94a42c3c291ce107f16964022db7a564d576c094647cbaf9"
+"manifests/ours/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
+"manifests/ours/alacritty/Cargo.toml" = "0ca308ce8bb5407206b4cd0c6f4ecd429755e9f433ea598afc4970684ec0d7e4"
+"manifests/ours/alacritty_config/Cargo.toml" = "796d4513f3f1ba41e696b6abe63ca9647f451364cacc26b4e5ae86c19f391e01"
+"manifests/ours/alacritty_config_derive/Cargo.toml" = "ed428391b16633a4f0f69a661701125bec852c72d0e7adfccb9f3efef5f4e523"
+"manifests/ours/alacritty_terminal/Cargo.toml" = "d8b5f075f534d08e94a42c3c291ce107f16964022db7a564d576c094647cbaf9"
+"manifests/theirs/Cargo.toml" = "fa566c67ab8d03c129238f1eb6f2644c41a2fc4f3e959d328f4bc4c121e4a9ff"
+"manifests/theirs/alacritty/Cargo.toml" = "cf57a371240e64e1d10071c14c00b390dc7e4f2e492b5a49ff8bb29fca6bdb44"
+"manifests/theirs/alacritty_config/Cargo.toml" = "24517b5567f9026fdc0b9d3bf42ac3d0f9ea3473219bc304ba387bc12d1a4788"
+"manifests/theirs/alacritty_config_derive/Cargo.toml" = "ed428391b16633a4f0f69a661701125bec852c72d0e7adfccb9f3efef5f4e523"
+"manifests/theirs/alacritty_terminal/Cargo.toml" = "d8b5f075f534d08e94a42c3c291ce107f16964022db7a564d576c094647cbaf9"
+"ours" = "8220088d7a654b5e33a9addcce92ba9c7fd3754c8f72a3383727173fcd239b41"
+"theirs" = "4056e33de9c0734d596b460c0f6e9ca13893815f53b69f3ef79f85c6c3cc2471"

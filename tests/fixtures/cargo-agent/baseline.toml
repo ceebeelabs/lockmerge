@@ -1,0 +1,10 @@
+# The ratchet of `lockmerge-bench check` for the agent-style corpus
+# (docs/02-oracle.md sections 5 and 6.3, ADR 0006). Baseline: the rate measured
+# on 2026-11-21 with the manifest rules of #37 (PR #71), before the R15 proof
+# of #38. Lowering a value needs the owner's review.
+min_cases = 59
+min_reachable = 59
+# The reachable resolution rate must be at least min_rate_resolved / min_rate_of.
+min_rate_resolved = 3
+min_rate_of = 32
+max_unverified = 0

@@ -1,0 +1,28 @@
+repository = "https://github.com/sharkdp/bat.git"
+license = "MIT OR Apache-2.0"
+base_commit = "e118c20e4861dee2a7cdab1e5316ccffa3b29672"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+shape = "adjacent-adds-same-member"
+intent = "merge"
+built_by = "owner-side synth, docs/02-oracle.md section 6.3; ADR 0007 rule 4 exception"
+cargo_version = "cargo 1.96.0 (30a34c682 2026-05-25)"
+extracted_on = "2026-11-21"
+
+[recipe]
+base = "checkout e118c20e4861dee2a7cdab1e5316ccffa3b29672"
+ours = ["cargo add md-5@=0.11.0", "cargo metadata --format-version 1"]
+theirs = ["cargo add heck@=0.5.0", "cargo metadata --format-version 1"]
+expected = ["cargo add md-5@=0.11.0", "cargo add heck@=0.5.0", "cargo metadata --format-version 1"]
+
+[sha256]
+"base" = "034c8ebee7d40e5d8d0fa56c69c66332d5f2f1c1f2be816c7e55031551869a53"
+"expected" = "bab7318ab90676929e74e3bb40122d42d3225251c4ba5111715252d2911ba51a"
+"manifests/base/Cargo.toml" = "323193b9ef39a75f67de8d7aa9d7c178e590dd044a7ae5846e83f9ac54f75ca9"
+"manifests/ours/Cargo.toml" = "aac2621f465b795e6723255e29c1f5b3b5bd364799b211ca67aa24976989f5e6"
+"manifests/theirs/Cargo.toml" = "082ff6e9e3ca0df4ffb8c6f0a609088686cc2beb45a66c53a09564960b173837"
+"ours" = "28dd486ba6b8453f8a95e048a014a429290c3def58626eb59bc082541631b3d5"
+"theirs" = "71b791b66fa8ade84ed57d32e66d96f0526b8fd26027a496d1e0f1462504287d"
