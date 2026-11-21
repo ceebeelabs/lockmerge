@@ -279,7 +279,7 @@ mod tests {
             metrics: compute(&results),
             baseline: None,
             results,
-            bytes: 0,
+            size: crate::case::TreeSize::default(),
         };
         let mut out = String::new();
         eco_section(&mut out, &e, &[]);
