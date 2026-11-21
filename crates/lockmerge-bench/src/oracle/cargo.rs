@@ -425,6 +425,21 @@ pub fn path_package_names(bytes: &[u8]) -> Result<BTreeSet<String>, String> {
         .collect())
 }
 
+/// The names of the registry packages of a lockfile: those whose source is a
+/// `registry+` or `sparse+` URL. Git sources and path packages are not here.
+pub fn registry_package_names(bytes: &[u8]) -> Result<BTreeSet<String>, String> {
+    Ok(parse(bytes)?
+        .packages
+        .into_iter()
+        .filter(|p| {
+            p.source
+                .as_deref()
+                .is_some_and(|s| s.starts_with("registry+") || s.starts_with("sparse+"))
+        })
+        .map(|p| p.name)
+        .collect())
+}
+
 impl Oracle for CargoOracle {
     fn ids(&self, bytes: &[u8]) -> Result<BTreeSet<String>, String> {
         Ok(parse(bytes)?.packages.iter().map(Pkg::id).collect())

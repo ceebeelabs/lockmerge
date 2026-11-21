@@ -514,6 +514,20 @@ or `INDEX.toml` fails the gate, and so does a missing `cargo/` directory.
 File names are neutral (no `Cargo.lock`), so Dependabot, Renovate and Cargo
 ignore them. The real name is `lockfile_path` in `case.toml`.
 
+`index/` holds the registry index cache that R15 reads
+(docs/formats/cargo-registry-index.md). For every registry package
+(`registry+` or `sparse+` source) in base, ours or theirs, `extract` copies the
+cache file of its crate, byte for byte, from the owner's `CARGO_HOME`
+(`--cargo-home DIR`, else the `CARGO_HOME` variable, else `~/.cargo`) at
+extraction time: `<CARGO_HOME>/registry/index/<dir>/.cache/<path>` is saved as
+`index/<dir>/.cache/<path>`, for every index directory that has it. Each file
+is listed in `[sha256]` and counts in the size budget. A crate with no file, or
+a name the format document does not pin, is not saved and the summary counts
+it: R15 refuses such a case. Cargo must have fetched the packages first (a
+`cargo fetch` in the repository at each side). The agent-style recipe
+(section 6.3) saves the same files in step 5, from the `CARGO_HOME` cargo ran
+with. Tests use a fake `CARGO_HOME`; nothing downloads.
+
 `manifests/` is always saved, because the replay (section 3.3) commits them
 into the temporary repository for the driver to read. It holds, for each of
 base, ours and theirs, the `Cargo.toml` files (including workspace members and
@@ -548,7 +562,10 @@ orchestrator repository.
    Branch `b`: the same with `B`: `theirs`.
 4. `expected`: on `base`, run both adds and let cargo update the lockfile. This
    is what a person would commit after merging both branches.
-5. Save the four lockfiles as bytes, the manifests of each side, and a
+5. Save the four lockfiles as bytes, the manifests of each side, the registry
+   index cache files of every registry package in base, ours and theirs
+   (`index/`, section 6.2, copied byte for byte from the `CARGO_HOME` cargo
+   ran with), and a
    `case.toml` recording the commands, the exact `cargo --version`, the crate
    versions, and the date. Cargo is run once at extraction; the files are then
    committed unchanged.
