@@ -1,0 +1,4 @@
+source = "Hand-built: ours has an edge `rand` while two versions of rand exist, which Cargo reads as no edge."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R9"

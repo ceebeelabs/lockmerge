@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours says version 5, which only unstable Cargo writes."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R1"

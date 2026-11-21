@@ -1,0 +1,4 @@
+source = "Hand-built: ours has a `replace` key on a package."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R10"

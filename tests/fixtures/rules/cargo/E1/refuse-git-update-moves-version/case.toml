@@ -1,0 +1,4 @@
+source = "Hand-built: ours updates foo from 1.0.0 at one commit to 1.1.0 at another; theirs removes the member cli. The dependency follows branch main; the sources differ in the commit after the hash sign."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

@@ -1,0 +1,4 @@
+source = "Real: the Cargo.lock files packaged in the crates.io releases shlex 2.0.1 (base), data-encoding 2.11.1 (ours) and equivalent 1.0.2 (theirs). None has a version key (Cargo's version 1 or 2 form); they stand in for three versions of one file and test only the refusal. Not a real merge."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R1"

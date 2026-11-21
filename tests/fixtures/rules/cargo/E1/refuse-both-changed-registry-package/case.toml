@@ -1,0 +1,4 @@
+source = "Hand-built: ours drops serde's edge to dep-a, theirs its edge to dep-b (a feature set that differs). No rule combines them."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"
