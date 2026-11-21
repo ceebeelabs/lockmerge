@@ -3,10 +3,7 @@
 use std::io::Write;
 use std::process::Command;
 
-/// The driver line (ADR 0010 decision 1). The command is the bare name
-/// `lockmerge`, found through `PATH`.
-pub const DRIVER: &str = "lockmerge merge-driver %O %A %B %L %P %S %X %Y";
-pub const NAME: &str = "lockmerge lockfile merge driver";
+pub use lockmerge_core::driver_config::{DRIVER, NAME};
 
 /// The oldest git that expands `%S %X %Y`.
 pub const OLDEST_GIT: (u64, u64, u64) = (2, 44, 0);
