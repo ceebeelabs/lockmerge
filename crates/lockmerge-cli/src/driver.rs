@@ -6,6 +6,7 @@
 //! `%A` is untouched.
 
 use lockmerge_core::{Context, Format, Manifests, Outcome, Refusal, Report, engine};
+use lockmerge_env::CargoHome;
 use std::fs;
 use std::io::{ErrorKind, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -171,7 +172,8 @@ fn decide(
         )));
     }
     let source = manifests(args, ours);
-    let cx = Context::new(source.as_ref());
+    let index = CargoHome::from_env();
+    let cx = Context::new(source.as_ref()).with_index(&index);
     let inputs = lockmerge_core::Inputs {
         base,
         ours,

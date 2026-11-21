@@ -25,8 +25,8 @@ mod report;
 pub mod testkit;
 
 pub use format::{
-    Conflict, Context, Findings, Format, Inputs, ManifestResult, Manifests, Pipeline, Removal,
-    Role, Verdict, Why,
+    Conflict, Context, Findings, Format, IndexCache, Inputs, ManifestResult, Manifests, Pipeline,
+    Removal, Role, Verdict, Why,
 };
 pub use ids::{CodeDef, FormatId, ReasonCode, RuleDef};
 pub use proof::{Draft, Proof, Sealed};

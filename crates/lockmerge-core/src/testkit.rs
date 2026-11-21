@@ -26,11 +26,12 @@
 //! (ADR 0007), which the bench replays through git; a rule fixture that has it
 //! is an error. A rule fixture may also hold each input's own manifests under
 //! `sides/{base,ours,theirs}/<path>`, which [`Manifests::side`] returns. The
-//! `index/` directory of a case is reserved for the `FakeIndex` of
-//! `lockmerge-cargo`.
+//! `index/` directory of a case is a fake `CARGO_HOME/registry/index/`:
+//! `index/<directory>/<path>` is the file at `<path>` in that index directory
+//! (see [`FakeIndex`]).
 #![allow(clippy::disallowed_methods, clippy::disallowed_types)]
 
-use crate::{Context, Format, Inputs, ManifestResult, Manifests, Outcome, Role, Why};
+use crate::{Context, Format, IndexCache, Inputs, ManifestResult, Manifests, Outcome, Role, Why};
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -192,6 +193,76 @@ impl Manifests for FakeManifests {
     }
 }
 
+/// An [`IndexCache`] built from a case's `index/` directory, which stands for
+/// `CARGO_HOME/registry/index/`: each subdirectory is one index directory.
+/// A case without `index/` has no cache.
+#[derive(Clone, Debug, Default)]
+pub struct FakeIndex {
+    /// Index directory name, then the files below it by relative path.
+    dirs: BTreeMap<String, BTreeMap<String, Vec<u8>>>,
+}
+
+impl FakeIndex {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Adds a file at `rel_path` to the index directory `dir`.
+    pub fn with(mut self, dir: &str, rel_path: &str, bytes: &[u8]) -> Self {
+        self.dirs
+            .entry(dir.to_string())
+            .or_default()
+            .insert(rel_path.to_string(), bytes.to_vec());
+        self
+    }
+
+    /// Reads `<case dir>/index/`. A missing directory is an empty fake.
+    pub fn from_case_dir(dir: &Path) -> Result<Self, String> {
+        let root = dir.join("index");
+        let mut fake = Self::new();
+        if !root.is_dir() {
+            return Ok(fake);
+        }
+        for d in sorted_entries(&root)? {
+            if !d.is_dir() {
+                return Err(format!(
+                    "{}: index/ holds only index directories",
+                    d.display()
+                ));
+            }
+            let mut files = BTreeMap::new();
+            Self::read_files(&d, "", &mut files)?;
+            fake.dirs.insert(file_name(&d)?, files);
+        }
+        Ok(fake)
+    }
+
+    fn read_files(
+        dir: &Path,
+        prefix: &str,
+        out: &mut BTreeMap<String, Vec<u8>>,
+    ) -> Result<(), String> {
+        for entry in sorted_entries(dir)? {
+            let rel = format!("{prefix}{}", file_name(&entry)?);
+            if entry.is_dir() {
+                Self::read_files(&entry, &format!("{rel}/"), out)?;
+            } else {
+                out.insert(rel, read(&entry)?);
+            }
+        }
+        Ok(())
+    }
+}
+
+impl IndexCache for FakeIndex {
+    fn files(&self, rel_path: &str) -> Vec<Vec<u8>> {
+        self.dirs
+            .values()
+            .filter_map(|files| files.get(rel_path).cloned())
+            .collect()
+    }
+}
+
 /// What a case expects.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Expect {
@@ -218,6 +289,7 @@ pub struct Case {
     /// Present exactly for merged cases.
     pub expected: Option<Vec<u8>>,
     pub manifests: FakeManifests,
+    pub index: FakeIndex,
 }
 
 impl Case {
@@ -236,6 +308,7 @@ impl Case {
             theirs: self.ours.clone(),
             expected: self.expected.clone(),
             manifests: self.manifests.swapped(),
+            index: self.index.clone(),
         }
     }
 
@@ -281,6 +354,7 @@ impl Case {
             theirs: read(&dir.join("theirs")).map_err(at)?,
             expected,
             manifests: FakeManifests::from_case_dir(dir).map_err(at)?,
+            index: FakeIndex::from_case_dir(dir).map_err(at)?,
         })
     }
 }
@@ -288,7 +362,7 @@ impl Case {
 /// Runs `case` through `format` and checks the outcome exactly: bytes,
 /// applied rules, downgrades and also_refused for a merge, the primary code for a refusal.
 pub fn run_case(format: &dyn Format, case: &Case) -> Result<(), String> {
-    let cx = Context::new(&case.manifests);
+    let cx = Context::new(&case.manifests).with_index(&case.index);
     let inputs = Inputs {
         base: &case.base,
         ours: &case.ours,
