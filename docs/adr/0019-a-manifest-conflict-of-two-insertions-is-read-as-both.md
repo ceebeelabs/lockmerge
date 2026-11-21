@@ -1,6 +1,6 @@
 # 0019. A manifest conflict of two insertions is read as both (amends ADR 0008 decision 10 and ADR 0010)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 
 ## Context
