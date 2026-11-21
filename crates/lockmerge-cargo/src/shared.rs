@@ -9,7 +9,7 @@ use crate::model::{Id, Lock};
 use lockmerge_core::{Context, Role};
 use semver::Version;
 use std::cell::{Cell, OnceCell, RefCell};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const ROLES: [Role; 3] = [Role::Base, Role::Ours, Role::Theirs];
 
@@ -198,7 +198,25 @@ impl Shared {
                 .filter(|(id, _)| id.name == name)
                 .collect()
         }
-        let identical = |name: &str| entries(mine, name) == entries(adder, name);
+        // The entries and everything reachable from them must match: a
+        // feature the new declaration forwards can reach a transitive crate
+        // that one branch upgraded.
+        fn closure<'a>(m: &'a Lock, name: &str) -> BTreeMap<&'a Id, &'a crate::model::Package> {
+            let mut out = BTreeMap::new();
+            let mut stack: Vec<&Id> = m.packages.keys().filter(|i| i.name == name).collect();
+            while let Some(id) = stack.pop() {
+                if let Some(p) = m.packages.get(id)
+                    && out.insert(id, p).is_none()
+                {
+                    stack.extend(p.edges.iter());
+                }
+            }
+            out
+        }
+        let identical = |name: &str| {
+            entries(mine, name) == entries(adder, name)
+                && closure(mine, name) == closure(adder, name)
+        };
         covers_combined(found, side, base, &names, &identical).map_err(Fail::Rule)
     }
 

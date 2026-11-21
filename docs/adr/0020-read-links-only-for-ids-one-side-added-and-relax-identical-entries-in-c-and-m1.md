@@ -13,8 +13,8 @@ ADR 0016 decision 3 lets M2 accept a plain registry declaration that the side la
 
 ## Decision
 
-1. V6 (rule R15) reads `links` only for registry ids that exactly one side added (as today, from the checksum-matched index cache) and for path packages (from their merged manifests). A git id that is present in both ours and theirs is not read. A git id that only one side holds, including every git id a side added, still refuses as today.
-2. The identical-entry relaxation of ADR 0016 decision 3 applies to C(i) and M1 e as well as M2: a plain registry declaration the side lacks (no features, default features, not optional), for a crate the side's lockfile holds, passes if the crate's entries are identical in both lockfiles and refuses if they differ.
+1. V6 (rule R15) reads `links` for registry ids (as today, from the checksum-matched index cache; the proof runs only when each side added a different registry id) and for path packages (from their merged manifests). A git id that is present in both ours and theirs is not read. A git id that only one side holds, including every git id a side added, still refuses as today.
+2. The identical-entry relaxation of ADR 0016 decision 3 applies to C(i) and M1 e as well as M2: a plain registry declaration the side lacks (no features, default features, not optional), for a crate the side's lockfile holds, passes if the crate's entries, and every package reachable from them, are identical in both lockfiles, and refuses if any differ: a feature the declaration forwards can reach a transitive crate that one branch upgraded.
 
 ## Considered options
 
