@@ -243,7 +243,7 @@ does not satisfy `=1.0.0` (condition d).
 M2 also refuses a combination that makes a normal dependency cycle through
 the package, and one whose merged `[features]`, membership or feature
 selection differs from either branch's (comparison as in C(i), except that the
-plain declaration the branch lacks may name a crate its lockfile does not hold or one with an identical entry in both lockfiles).
+plain declaration the branch lacks may name a crate its lockfile does not hold or one with an identical entry in both lockfiles; C(i) and M1 e allow the same, ADR 0020).
 Neighbor refuse cases: the merged manifest lists a fourth dependency that
 neither lockfile has an edge for (condition c); the merged manifest declares
 `anyhow = "2"` but ours resolved 1.0.80 (d); the manifest of `app` cannot be
@@ -273,7 +273,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - V3. Every non-path package is reachable from a path package.
 - V4. No two registry packages of the same name and source are semver-compatible (owner decision). Rests on the [resolver docs](https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility); the 0.x rule is inferred from their examples. **Unverified by running Cargo.**
 - V5. Output sorted and canonical (section 5).
-- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git. When one registry or git id was added only by ours (not in base) and a different registry or git id only by theirs, they have never been resolved together, so the merge needs the `links` proof of 4.5 ("Registry index cache"). The proof covers registry pairs only; a pair with a git id on either side is always refused, since `links` cannot be read for git sources. For registry pairs: every registry id in the merged set has an index entry matching name, version and checksum, and no two packages share a `links` value. Without the proof: refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
+- V6. Native links. Cargo allows one package per `links` value (for example `sqlite3`, declared by both `libsqlite3-sys` and `sqlite3-src`), and `links` is in registry manifests, which are not in git. When one registry or git id was added only by ours (not in base) and a different registry or git id only by theirs, they have never been resolved together, so the merge needs the `links` proof of 4.5 ("Registry index cache"). The proof covers registry pairs only; a pair with a git id added by either side is always refused, since `links` cannot be read for git sources. A git id that both ours and theirs hold is not read (ADR 0020): each side's resolution already held it with all its other packages, so it cannot collide with an id only one side added. For registry pairs: every registry id in the merged set has an index entry matching name, version and checksum, and no two packages share a `links` value. Without the proof: refuse (R15). Ids both sides added identically, and additions by one side only, are not affected.
 
 ### 4.4 Cases that must be refused
 
@@ -290,7 +290,7 @@ on `old-crate`: the removal conflicts with a live edge (R5 stays).
 - R11. Prerelease versus release difference on one package; any non-semver version string.
 - R12. A source string changes for the same name and version.
 - R13. The merged lockfile satisfies the merged manifest for every part the rules above do not check (registry crates' requirements on each other, features). Not provable here; it is the job of the benchmark and CI check (section 6).
-- R15. A registry or git id added only by ours and a different registry or git id added only by theirs, and either side's id is a git source, or the `links` proof (4.5) fails: the cache is absent, unreadable or in a format we cannot read exactly; an id has no entry, or its checksum differs from the entry's; any git source id is in the merged set; a path package's `links` cannot be read; or two packages share a `links` value. Examples: ours adds git crate `native-a` to member a and theirs git crate `native-b` to member b, both `links = "sqlite3"` (always refused); ours adds `libgit2-sys` 0.11 and theirs 0.12 (both `links = "git2"`), or ours adds `libsqlite3-sys` and theirs `sqlite3-src` (both `links = "sqlite3"`).
+- R15. A registry or git id added only by ours and a different registry or git id added only by theirs, and either side's id is a git source, or the `links` proof (4.5) fails: the cache is absent, unreadable or in a format we cannot read exactly; an id has no entry, or its checksum differs from the entry's; a git source id that only one side holds is in the merged set; a path package's `links` cannot be read; or two packages share a `links` value. Examples: ours adds git crate `native-a` to member a and theirs git crate `native-b` to member b, both `links = "sqlite3"` (always refused); ours adds `libgit2-sys` 0.11 and theirs 0.12 (both `links = "git2"`), or ours adds `libsqlite3-sys` and theirs `sqlite3-src` (both `links = "sqlite3"`).
 - Codes of the manifest rules in `lockmerge-cargo` that the list above does not number: `DOWNGRADE` (rule D), `FEATURES` (rules C and F: the merged manifests may select features the taken entry was not resolved with, or the entry lacks a dependency another version has) and `REQUIREMENT` (rule B1: a merged path manifest does not admit the version taken). When M1's conditions fail the refusal is R3; when M2's fail, R6.
 - R14. A manifest is needed by a rule and any of the following holds: the commits are not identifiable (4.5), a manifest is missing on any side, the text merge of a manifest conflicts, a path package in the lockfile cannot be mapped to exactly one manifest with the same name and version, or the manifest uses a form we do not read. Refuse the rule (B1 refuses the merge when a version change needs a manifest) and apply the base rules.
 
@@ -421,12 +421,12 @@ its `cksum` equals the lockfile's checksum; that makes it proof, not a guess.
 All registry directories are searched, so no registry-name hash is computed;
 disagreeing `links` between directories refuses. The entry's `links` value (or
 its absence) is read. The `links` of path packages is read from their manifests
-(4.5); git source ids refuse. The merge is accepted only if every id has a
+(4.5); git source ids refuse, except one that ours and theirs both hold (ADR 0020). The merge is accepted only if every id has a
 matching entry and no two packages share a `links` value. This widens the
 "manifests from git objects only" rule of ADR 0003 and ADR 0010 for this one
 input. The result depends on the cache being present, but a missing cache only
 causes refusals, never a different merge. Tests: cache present and links-free
-(accept); a git id on either side (refuse); shared `links` (refuse); checksum mismatch (refuse); cache absent
+(accept); a git id held by both sides (accept, ADR 0020); a git id added by either side (refuse); shared `links` (refuse); checksum mismatch (refuse); cache absent
 (refuse); unknown cache format (refuse).
 
 **Tools.** Shell out to the `git` executable (`rev-parse`, `cat-file`,

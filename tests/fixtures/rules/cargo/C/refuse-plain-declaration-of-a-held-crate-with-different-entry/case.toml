@@ -1,0 +1,4 @@
+source = "Hand-built reduction: the same as accept-plain-declaration-of-a-held-crate-with-identical-entry, except that ours moves itoa to 1.0.1 (the checksum is kept, synthetic), so the entry of itoa differs between the lockfiles and the added declaration cannot be proven (ADR 0020)."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.FEATURES"

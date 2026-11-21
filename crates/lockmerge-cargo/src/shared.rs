@@ -3,13 +3,13 @@
 //! them), the both-sides-bumped groups the envelope proved (M1) and the
 //! removals pending for the prune step (M3).
 
-use crate::find::{Found, Side, check_patch, covers, covers_combined, find_with, read_side};
+use crate::find::{Found, Side, check_patch, covers_combined, find_with, read_side};
 use crate::manifest::Unread;
 use crate::model::{Id, Lock};
 use lockmerge_core::{Context, Role};
 use semver::Version;
 use std::cell::{Cell, OnceCell, RefCell};
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub const ROLES: [Role; 3] = [Role::Base, Role::Ours, Role::Theirs];
 
@@ -168,15 +168,15 @@ impl Shared {
     /// path package in any lockfile there is no manifest that selects
     /// features, and the check holds.
     pub fn covers(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
-        self.covers_as(role, cx, false)
+        self.covers_as(role, cx)
     }
 
     /// Coverage for a merge that combines both branches' changes (M2).
     pub fn covers_combined(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
-        self.covers_as(role, cx, true)
+        self.covers_as(role, cx)
     }
 
-    fn covers_as(&self, role: Role, cx: &Context<'_>, combined: bool) -> Result<(), Fail> {
+    fn covers_as(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
         if self.path_ids().is_empty() {
             return Ok(());
         }
@@ -189,9 +189,6 @@ impl Shared {
             .keys()
             .map(|id| id.name.as_str())
             .collect();
-        if !combined {
-            return covers(found, side, base, &names).map_err(Fail::Rule);
-        }
         // The other branch added the declarations; a held crate is proven by
         // its entries being the same in both lockfiles.
         let (mine, adder) = (self.model(role), self.model(other(role)));
@@ -201,7 +198,25 @@ impl Shared {
                 .filter(|(id, _)| id.name == name)
                 .collect()
         }
-        let identical = |name: &str| entries(mine, name) == entries(adder, name);
+        // The entries and everything reachable from them must match: a
+        // feature the new declaration forwards can reach a transitive crate
+        // that one branch upgraded.
+        fn closure<'a>(m: &'a Lock, name: &str) -> BTreeMap<&'a Id, &'a crate::model::Package> {
+            let mut out = BTreeMap::new();
+            let mut stack: Vec<&Id> = m.packages.keys().filter(|i| i.name == name).collect();
+            while let Some(id) = stack.pop() {
+                if let Some(p) = m.packages.get(id)
+                    && out.insert(id, p).is_none()
+                {
+                    stack.extend(p.edges.iter());
+                }
+            }
+            out
+        }
+        let identical = |name: &str| {
+            entries(mine, name) == entries(adder, name)
+                && closure(mine, name) == closure(adder, name)
+        };
         covers_combined(found, side, base, &names, &identical).map_err(Fail::Rule)
     }
 

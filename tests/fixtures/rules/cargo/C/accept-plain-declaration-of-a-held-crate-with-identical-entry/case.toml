@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool with registry crates; checksums are synthetic. app declares itoa and rand (default-features = false); tool declares nothing. Theirs moves rand from 0.8.5 to 0.9.0 and raises the requirement to '0.9'. Ours adds a plain declaration of itoa to tool; itoa is in every lockfile with the same entry (ADR 0020)."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.C", "cargo.D", "cargo.F", "cargo.B1", "cargo.C", "core.B2", "core.B1", "core.B4", "core.B3", "core.B2", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]
