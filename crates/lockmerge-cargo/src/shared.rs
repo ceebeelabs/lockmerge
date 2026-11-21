@@ -57,6 +57,13 @@ pub struct Shared {
     pub pending: RefCell<BTreeSet<Id>>,
 }
 
+fn other(role: Role) -> Role {
+    match role {
+        Role::Ours => Role::Theirs,
+        _ => Role::Ours,
+    }
+}
+
 pub fn index(role: Role) -> usize {
     match role {
         Role::Base => 0,
@@ -134,8 +141,20 @@ impl Shared {
             .keys()
             .map(|id| id.name.as_str())
             .collect();
-        let check = if combined { covers_combined } else { covers };
-        check(found, side, base, &names).map_err(Fail::Rule)
+        if !combined {
+            return covers(found, side, base, &names).map_err(Fail::Rule);
+        }
+        // The other branch added the declarations; a held crate is proven by
+        // its entries being the same in both lockfiles.
+        let (mine, adder) = (self.model(role), self.model(other(role)));
+        fn entries<'a>(m: &'a Lock, name: &str) -> Vec<(&'a Id, &'a crate::model::Package)> {
+            m.packages
+                .iter()
+                .filter(|(id, _)| id.name == name)
+                .collect()
+        }
+        let identical = |name: &str| entries(mine, name) == entries(adder, name);
+        covers_combined(found, side, base, &names, &identical).map_err(Fail::Rule)
     }
 
     /// Per input, the packages reachable from its path packages.

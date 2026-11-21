@@ -463,6 +463,10 @@ fn the_one_sided_rules_apply_to_either_side() {
         ("C", "accept-cross-class-upgrade"),
         ("M3", "accept-removed-and-changed-package-unused"),
         ("M2", "accept-both-add-an-edge-to-the-same-member"),
+        (
+            "M2",
+            "accept-plain-declaration-of-a-held-crate-with-identical-entry",
+        ),
     ] {
         assert_same_merge(rule, name);
     }
@@ -530,4 +534,78 @@ fn m2_refuses_cycles_and_unproven_feature_combinations_for_the_stated_reason() {
             assert!(detail.iter().any(|d| d.contains(why)), "{name}: {detail:?}");
         }
     }
+}
+
+#[test]
+fn m2_refuses_a_held_crate_whose_entry_differs_in_both_branch_orders() {
+    let case = load(
+        "M2",
+        "refuse-plain-declaration-of-a-held-crate-with-different-entry",
+    );
+    for case in [case.swapped(), case] {
+        let report = lockmerge_cargo::format()
+            .merge(
+                &Inputs {
+                    base: &case.base,
+                    ours: &case.ours,
+                    theirs: &case.theirs,
+                    path: &case.path,
+                },
+                &Context::new(&case.manifests),
+            )
+            .unwrap();
+        let Outcome::Refused(r) = &report.outcome else {
+            panic!("merged");
+        };
+        assert_eq!(r.code.to_string(), "cargo.FEATURES");
+        // The one-sided change to serde's entry is refused earlier by rule C
+        // for the same declaration; the identity proof itself is tested below.
+        assert!(
+            r.facts.iter().any(|(_, v)| v.contains("is new")),
+            "{:?}",
+            r.facts
+        );
+    }
+}
+
+#[test]
+fn combined_coverage_proves_a_held_crate_by_identical_entries() {
+    use lockmerge_cargo::find::{ENTRY_DIFFERS, covers_combined};
+    let own = member("m", "rand = \"0.8\"\n");
+    let merged_m = member("m", "rand = \"0.8\"\nserde = \"1\"\n");
+    let root = "[workspace]\nmembers = [\"m\"]\n";
+    let mm = merged(&[("Cargo.toml", root.to_string()), ("m/Cargo.toml", merged_m)]);
+    let found = find(&ids(&["m"]), "Cargo.lock", &Context::new(&mm)).unwrap();
+    let sides = side_of(&[("Cargo.toml", root), ("m/Cargo.toml", &own)]);
+    let cx = Context::new(&sides);
+    let ours = read_side(&found, Role::Ours, &cx).unwrap();
+    let base = read_side(&found, Role::Base, &cx).unwrap();
+    let held: BTreeSet<&str> = ["rand", "serde"].into_iter().collect();
+    // The branch's lockfile holds serde and the entries are identical.
+    assert_eq!(
+        covers_combined(&found, &ours, &base, &held, &|_| true),
+        Ok(())
+    );
+    // Held, entries differ: refused with the identity marker.
+    let e = covers_combined(&found, &ours, &base, &held, &|_| false).unwrap_err();
+    assert!(e.contains(ENTRY_DIFFERS), "{e}");
+    // Not held: nothing to prove.
+    let none: BTreeSet<&str> = ["rand"].into_iter().collect();
+    assert_eq!(
+        covers_combined(&found, &ours, &base, &none, &|_| false),
+        Ok(())
+    );
+    // Non-plain declaration of a held crate is refused whatever the entries.
+    let mm2 = merged(&[
+        ("Cargo.toml", root.to_string()),
+        (
+            "m/Cargo.toml",
+            member(
+                "m",
+                "rand = \"0.8\"\nserde = { version = \"1\", features = [\"derive\"] }\n",
+            ),
+        ),
+    ]);
+    let found2 = find(&ids(&["m"]), "Cargo.lock", &Context::new(&mm2)).unwrap();
+    assert!(covers_combined(&found2, &ours, &base, &held, &|_| true).is_err());
 }

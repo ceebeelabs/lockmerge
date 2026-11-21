@@ -80,7 +80,11 @@ fn both_changed(
     match m2(sh, cx, id, base, ours, theirs) {
         Ok(p) => Verdict::Accept(p, cx.proof(M2, vec![("package", id.to_string())])),
         Err(why) => Verdict::Refuse(Refusal::new(
-            codes::R6,
+            if why.contains(crate::find::ENTRY_DIFFERS) {
+                codes::FEATURES
+            } else {
+                codes::R6
+            },
             vec![id.to_string()],
             vec![("detail", why)],
         )),

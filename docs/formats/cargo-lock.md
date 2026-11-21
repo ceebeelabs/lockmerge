@@ -235,7 +235,7 @@ does not satisfy `=1.0.0` (condition d).
 M2 also refuses a combination that makes a normal dependency cycle through
 the package, and one whose merged `[features]`, membership or feature
 selection differs from either branch's (comparison as in C(i), except that the
-plain declaration the branch lacks may name any crate).
+plain declaration the branch lacks may name a crate its lockfile does not hold or one with an identical entry in both lockfiles).
 Neighbor refuse cases: the merged manifest lists a fourth dependency that
 neither lockfile has an edge for (condition c); the merged manifest declares
 `anyhow = "2"` but ours resolved 1.0.80 (d); the manifest of `app` cannot be

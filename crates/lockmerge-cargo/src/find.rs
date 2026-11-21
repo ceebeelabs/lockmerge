@@ -238,33 +238,39 @@ pub fn covers(
     base: &Side,
     side_names: &BTreeSet<&str>,
 ) -> Result<(), Mismatch> {
-    covers_with(found, side, base, side_names, false)
+    covers_with(found, side, base, side_names, None)
 }
 
 /// [`covers`] for a merge that combines both branches' changes to a path
 /// package (M2). The combination is compared with each branch's manifests in
-/// turn, and the other branch's added declaration may be any plain registry
-/// dependency, since by definition the branch lacked it: what is still
-/// required is that no feature table, membership, resolver, edition or feature
-/// selection differs, so no feature forwarded by one branch can reach what the
-/// other branch resolved. A plain declaration of a crate the branch's lockfile
-/// already holds can still unify default features, which no lockfile shows; that
-/// residual case is documented in ADR 0016.
+/// turn: no feature table, membership, resolver, edition or feature selection
+/// may differ, so no feature forwarded by one branch can reach what the other
+/// branch resolved. The other branch's added plain registry declaration (no
+/// features, default features, not optional) of a crate the branch's lockfile
+/// already holds can unify default features; it is accepted only if
+/// `identical(name)` says the crate's entries (id, checksum and resolved
+/// dependency edges) are the same in both lockfiles, because the branch that
+/// added the declaration was resolved with it in force (ADR 0016).
 pub fn covers_combined(
     found: &Found,
     side: &Side,
     base: &Side,
     side_names: &BTreeSet<&str>,
+    identical: &dyn Fn(&str) -> bool,
 ) -> Result<(), Mismatch> {
-    covers_with(found, side, base, side_names, true)
+    covers_with(found, side, base, side_names, Some(identical))
 }
+
+/// Marks a refusal whose cause is a plain declaration of a held crate whose
+/// entry differs between the lockfiles.
+pub const ENTRY_DIFFERS: &str = "its entry differs between the branches' lockfiles";
 
 fn covers_with(
     found: &Found,
     side: &Side,
     base: &Side,
     side_names: &BTreeSet<&str>,
-    any_plain: bool,
+    identical: Option<&dyn Fn(&str) -> bool>,
 ) -> Result<(), Mismatch> {
     let root_path = manifest_path(&found.root_dir).map_err(|e| e.0)?;
     let mut paths: BTreeMap<&str, &Manifest> = BTreeMap::new();
@@ -277,7 +283,7 @@ fn covers_with(
             return Err(format!("{path} is not in the side's manifests"));
         };
         let (a, b, c) = (merged.selection(), own.selection(), first.selection());
-        same_selection(path, &a, &b, &c, side_names, any_plain)?;
+        same_selection(path, &a, &b, &c, side_names, identical)?;
     }
     Ok(())
 }
@@ -288,7 +294,7 @@ fn same_selection(
     side: &Selection,
     base: &Selection,
     side_names: &BTreeSet<&str>,
-    any_plain: bool,
+    identical: Option<&dyn Fn(&str) -> bool>,
 ) -> Result<(), Mismatch> {
     if merged.features != side.features {
         return Err(format!("{path}: the [features] table differs"));
@@ -305,11 +311,27 @@ fn same_selection(
             Some(d) if d == decl => {}
             Some(_) => return Err(format!("the declaration of {} differs", key(k))),
             None => {
-                let allowed = decl.is_plain()
-                    && decl.source == Source::Registry
-                    && (any_plain || !side_names.contains(decl.package.as_str()));
-                if !allowed {
+                let plain = decl.is_plain() && decl.source == Source::Registry;
+                let name = decl.package.as_str();
+                if !plain {
                     return Err(format!("the declaration of {} is new and selects", key(k)));
+                }
+                if side_names.contains(name) {
+                    match identical {
+                        Some(same) if same(name) => {}
+                        Some(_) => {
+                            return Err(format!(
+                                "the declaration of {} is new, {name} is in this branch's lockfile and {ENTRY_DIFFERS}",
+                                key(k)
+                            ));
+                        }
+                        None => {
+                            return Err(format!(
+                                "the declaration of {} is new and selects",
+                                key(k)
+                            ));
+                        }
+                    }
                 }
             }
         }
