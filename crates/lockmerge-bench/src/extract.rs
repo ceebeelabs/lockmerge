@@ -353,6 +353,11 @@ fn case_toml(
     ));
     s.push_str(&format!("base_commit = {}\n", q(&c.base)));
     s.push_str(&format!("lockfile_path = {}\n", q(&c.path)));
+    if let Some(n) = c.pull_request {
+        // A squash-merged pull request: `merge_commit` is the squash commit,
+        // `parents` its parent (ours) and the pull request head (theirs).
+        s.push_str(&format!("pull_request = {n}\n"));
+    }
     s.push_str("ours_is = \"parent1\"\n");
     s.push_str(&format!("kind = {}\n", q(c.kind.name())));
     s.push_str(&format!("foreign_ids_count = {}\n", c.foreign.len()));

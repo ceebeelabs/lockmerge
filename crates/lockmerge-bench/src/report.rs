@@ -168,6 +168,28 @@ fn eco_section(out: &mut String, e: &EcoReport, formats: &[&dyn Format]) {
         &zero_filled(codes, &m.downgrades),
     );
 
+    // Why each case was refused for an unavailable input (R14), so the
+    // causes can be counted and the common ones fixed.
+    let unavailable: Vec<_> = e
+        .results
+        .iter()
+        .filter_map(|r| {
+            let a = r.attribution.as_ref()?;
+            let code = a.refusal.as_deref()?;
+            code.ends_with(".R14")
+                .then_some((r, a.refusal_detail.as_deref()))
+        })
+        .collect();
+    if !unavailable.is_empty() {
+        let _ = writeln!(
+            out,
+            "  Refusals for an unavailable input (R14), with the cause:"
+        );
+        for (r, detail) in unavailable {
+            let _ = writeln!(out, "    {}: {}", r.id, detail.unwrap_or("(no detail)"));
+        }
+    }
+
     let notable: Vec<_> = e
         .results
         .iter()
@@ -223,6 +245,46 @@ mod tests {
                 ("z.Y".to_string(), 1, false)
             ]
         );
+    }
+
+    #[test]
+    fn r14_refusals_are_listed_with_their_cause_and_others_are_not() {
+        use crate::attribution::Attribution;
+        use crate::classify::Kind;
+        use crate::metrics::compute;
+        let result = |id: &str, code: &str, detail: &str| crate::metrics::CaseResult {
+            id: id.into(),
+            kind: Kind::Reachable,
+            git: GitOutcome::Conflict,
+            class: Class::Refused,
+            detail: String::new(),
+            millis: 1,
+            exact: false,
+            attribution: Some(Attribution {
+                format: "toy".into(),
+                applied: vec![],
+                refusal: Some(code.into()),
+                refusal_detail: Some(detail.into()),
+                downgrades: vec![],
+                merged: None,
+            }),
+            waived: false,
+        };
+        let results = vec![
+            result("a", "toy.R14", "x [detail: no manifest]"),
+            result("b", "toy.R15", "y [detail: two ids]"),
+        ];
+        let e = EcoReport {
+            name: "toy".into(),
+            metrics: compute(&results),
+            baseline: None,
+            results,
+            size: crate::case::TreeSize::default(),
+        };
+        let mut out = String::new();
+        eco_section(&mut out, &e, &[]);
+        assert!(out.contains("    a: x [detail: no manifest]"), "{out}");
+        assert!(!out.contains("two ids"), "{out}");
     }
 
     #[test]

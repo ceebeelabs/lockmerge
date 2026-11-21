@@ -231,6 +231,7 @@ fn source(r: &Repo, max_cases: usize) -> Source {
         max_file_bytes: 1_000_000,
         git_clean_percent: 25,
         license: None,
+        squash_prs: false,
     }
 }
 
@@ -836,4 +837,214 @@ fn an_empty_cargo_home_saves_nothing_and_the_case_stays_valid() {
     assert!(!dir.join("index").exists());
     let c = load_case("cargo", "cargo/t-repo/x", &dir).unwrap();
     assert!(c.problems.is_empty(), "{:?}", c.problems);
+}
+
+// Squash-merged pull requests (`squash_prs`).
+
+/// How the squash scenario differs from the plain accepted case.
+#[derive(Default)]
+struct Squash {
+    /// The squash commit changes a file the pull request did not.
+    extra_change: bool,
+    /// The default branch and the pull request both change `src.rs`.
+    overlap: bool,
+    /// A second commit on the default branch also names the pull request.
+    second_commit: bool,
+    /// The pull request leaves the lockfile alone.
+    lock_untouched: bool,
+    /// The subject of the squash commit.
+    subject: Option<&'static str>,
+}
+
+struct Landed {
+    repo: Repo,
+    squash: String,
+    ours: String,
+    head: String,
+}
+
+/// A repository where pull request 7 adds `pr1` to the lockfile and the
+/// default branch adds `m1`, so plain git conflicts, and the pull request is
+/// squash-merged (the lockfile resolved by hand) with `refs/pull/7/head` left
+/// pointing at its head.
+fn squash_scenario(v: Squash) -> Landed {
+    let r = Repo::new();
+    r.write("LICENSE-MIT", MIT);
+    r.write("Cargo.toml", "[package]\nname = \"app\"\n");
+    r.write(
+        "crates/member/Cargo.toml",
+        "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
+    );
+    r.write("src.rs", "one\n");
+    r.write("other.rs", "o\n");
+    r.write("Cargo.lock", &lock(&["p1", "p2"]));
+    r.commit("root");
+    r.git(&["checkout", "-q", "-B", "pr"]);
+    if !v.lock_untouched {
+        r.write("Cargo.lock", &lock(&["p1", "p2", "pr1"]));
+    }
+    r.write("pr.rs", "pr\n");
+    if v.overlap {
+        r.write("src.rs", "pr version\n");
+    }
+    r.commit("pr work");
+    let head = r.head();
+    r.git(&["checkout", "-q", "-B", "main", "HEAD~1"]);
+    r.write("Cargo.lock", &lock(&["p1", "p2", "m1"]));
+    if v.overlap {
+        r.write("src.rs", "main version\n");
+    }
+    r.commit("main work");
+    let ours = r.head();
+    // The squash merge: the pull request's changes as one commit.
+    r.try_git(&["merge", "--squash", "pr"]);
+    if !v.lock_untouched {
+        r.write("Cargo.lock", &lock(&["p1", "p2", "m1", "pr1"]));
+    }
+    if v.overlap {
+        r.write("src.rs", "merged\n");
+    }
+    if v.extra_change {
+        r.write("other.rs", "changed\n");
+    }
+    r.commit(v.subject.unwrap_or("Add pr1 (#7)"));
+    let squash = r.head();
+    if v.second_commit {
+        r.write("again.rs", "x\n");
+        r.commit("Follow up (#7)");
+    }
+    r.git(&["update-ref", "refs/pull/7/head", &head]);
+    Landed {
+        repo: r,
+        squash,
+        ours,
+        head,
+    }
+}
+
+fn squash_source(l: &Landed) -> Source {
+    let mut s = source(&l.repo, 10);
+    s.squash_prs = true;
+    s
+}
+
+fn index_of(out: &TempDir) -> BTreeMap<String, String> {
+    let text = fs::read_to_string(out.path().join("cargo/INDEX.toml")).unwrap();
+    // No `[[merge]]` table at all when nothing was considered.
+    if text.contains("[[merge]]") {
+        index(out)
+    } else {
+        BTreeMap::new()
+    }
+}
+
+fn run_squash(v: Squash) -> (Landed, BTreeMap<String, String>, TempDir) {
+    let l = squash_scenario(v);
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&squash_source(&l), &opts(&out, &cache)).unwrap();
+    let idx = index_of(&out);
+    (l, idx, out)
+}
+
+#[test]
+fn a_squash_merged_pull_request_becomes_a_case_with_its_commits() {
+    let (l, idx, out) = run_squash(Squash::default());
+    assert_eq!(idx[&l.squash], "case:reachable");
+    let dir = case_dir(&out, &l.squash);
+    let bytes = |n: &str| fs::read_to_string(dir.join(n)).unwrap();
+    assert_eq!(bytes("base"), lock(&["p1", "p2"]));
+    assert_eq!(bytes("ours"), lock(&["p1", "p2", "m1"]));
+    assert_eq!(bytes("theirs"), lock(&["p1", "p2", "pr1"]));
+    assert_eq!(bytes("expected"), lock(&["p1", "p2", "m1", "pr1"]));
+    let doc: DocumentMut = bytes("case.toml").parse().unwrap();
+    assert_eq!(doc["pull_request"].as_integer(), Some(7));
+    assert_eq!(doc["merge_commit"].as_str(), Some(l.squash.as_str()));
+    let parents: Vec<&str> = doc["parents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(parents, [l.ours.as_str(), l.head.as_str()]);
+    let case = load_case("cargo", "x", &dir).unwrap();
+    assert_eq!(case.meta.parents, parents);
+    let text = fs::read_to_string(out.path().join("cargo/INDEX.toml")).unwrap();
+    assert!(text.contains("plain_git = \"conflict\""));
+}
+
+#[test]
+fn squash_recovery_is_off_unless_the_source_asks_for_it() {
+    let l = squash_scenario(Squash::default());
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&source(&l.repo, 10), &opts(&out, &cache)).unwrap();
+    assert!(index_of(&out).is_empty());
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn a_subject_without_the_pull_request_number_is_not_a_squash_commit() {
+    for subject in ["Add pr1 (#8)", "Add pr1"] {
+        let (l, idx, _out) = run_squash(Squash {
+            subject: Some(subject),
+            ..Squash::default()
+        });
+        assert!(!idx.contains_key(&l.squash), "{subject}: {idx:?}");
+    }
+}
+
+#[test]
+fn two_commits_naming_the_pull_request_are_ambiguous_and_skipped() {
+    let (l, idx, out) = run_squash(Squash {
+        second_commit: true,
+        ..Squash::default()
+    });
+    // Listed under the pull request head, with the reason.
+    assert_eq!(idx[&l.head], "skipped:squash-ambiguous-commit");
+    assert!(!idx.contains_key(&l.squash));
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn a_squash_commit_that_is_not_the_pull_request_is_skipped() {
+    let (l, idx, out) = run_squash(Squash {
+        extra_change: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-not-the-pull-request");
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn a_path_both_sides_changed_cannot_be_proven_and_is_skipped() {
+    let (l, idx, _out) = run_squash(Squash {
+        overlap: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
+}
+
+#[test]
+fn a_pull_request_that_leaves_the_lockfile_alone_is_not_a_candidate() {
+    let (l, idx, _out) = run_squash(Squash {
+        lock_untouched: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:not-modify-modify");
+}
+
+#[test]
+fn survey_counts_squash_candidates_only_when_asked() {
+    let l = squash_scenario(Squash::default());
+    let cache = TempDir::new("cache").unwrap();
+    let repo = cache.path().join("t-repo.git");
+    let mut src = squash_source(&l);
+    ensure_clone(&src, &repo).unwrap();
+    let on = survey(&repo, &src, &CargoOracle).unwrap();
+    assert!(
+        on.contains("1 candidates") && on.contains("plain git conflicts 1"),
+        "{on}"
+    );
+    src.squash_prs = false;
+    let off = survey(&repo, &src, &CargoOracle).unwrap();
+    assert!(off.contains("0 candidates"), "{off}");
 }

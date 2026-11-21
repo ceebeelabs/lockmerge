@@ -23,6 +23,9 @@ pub struct Attribution {
     pub applied: Vec<String>,
     /// The primary refusal's code, when the format refused.
     pub refusal: Option<String>,
+    /// The primary refusal's subjects and facts as text, so a report can say
+    /// why, not only which code.
+    pub refusal_detail: Option<String>,
     /// Codes of non-fatal refusals that did not end the merge.
     pub downgrades: Vec<String>,
     /// The merged bytes, when the format merged.
@@ -96,14 +99,19 @@ impl Manifests for SavedManifests<'_> {
 }
 
 fn from_report(report: &Report) -> Attribution {
-    let (refusal, merged) = match &report.outcome {
-        Outcome::Refused(r) => (Some(r.code.to_string()), None),
-        Outcome::Clean(c) => (None, Some(c.bytes().to_vec())),
+    let (refusal, refusal_detail, merged) = match &report.outcome {
+        Outcome::Refused(r) => {
+            let facts: Vec<String> = r.facts.iter().map(|(k, v)| format!("{k}: {v}")).collect();
+            let detail = format!("{} [{}]", r.subjects.join(", "), facts.join("; "));
+            (Some(r.code.to_string()), Some(detail), None)
+        }
+        Outcome::Clean(c) => (None, None, Some(c.bytes().to_vec())),
     };
     Attribution {
         format: report.format.to_string(),
         applied: report.applied.iter().map(|a| a.rule.to_string()).collect(),
         refusal,
+        refusal_detail,
         downgrades: report
             .downgrades
             .iter()
@@ -169,9 +177,33 @@ mod tests {
             format: "toy".into(),
             applied: vec![],
             refusal: refusal.map(str::to_string),
+            refusal_detail: None,
             downgrades: vec![],
             merged: merged.map(<[u8]>::to_vec),
         }
+    }
+
+    #[test]
+    fn a_refusal_keeps_its_subjects_and_facts() {
+        use lockmerge_core::{FormatId, ReasonCode, Refusal};
+        let refusal = Refusal::new(
+            ReasonCode::new(FormatId("toy"), "R14"),
+            vec!["serde".to_string()],
+            vec![("detail", "the table `patch` is not read".to_string())],
+        );
+        let report = Report {
+            format: FormatId("toy"),
+            outcome: Outcome::Refused(refusal),
+            applied: vec![],
+            downgrades: vec![],
+            also_refused: vec![],
+        };
+        let a = from_report(&report);
+        assert_eq!(a.refusal.as_deref(), Some("toy.R14"));
+        assert_eq!(
+            a.refusal_detail.as_deref(),
+            Some("serde [detail: the table `patch` is not read]")
+        );
     }
 
     #[test]
