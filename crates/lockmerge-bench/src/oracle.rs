@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 mod cargo;
 
-pub use cargo::{CargoOracle, path_package_names};
+pub use cargo::{CargoOracle, path_package_names, registry_package_names};
 
 pub trait Oracle {
     /// The package ids of a lockfile (section 3.2).
