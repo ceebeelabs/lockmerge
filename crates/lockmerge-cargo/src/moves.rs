@@ -402,6 +402,39 @@ fn one_sided_move(
         ));
         return Err(Refusal::new(codes::FEATURES, vec![subject], f));
     }
+    if path {
+        // ADR 0018: a moved path package keeps every dependency target, except
+        // that a target which is itself a moved path package or a crate both
+        // branches bumped (M1) maps to its new id. A changed target, or a
+        // dependency gained, is not proven against the merged manifest.
+        let moves = sh.path_moves(role);
+        let map = |e: &Id| {
+            let e = moves.iter().find(|(o, _)| o == e).map_or(e, |(_, n)| n);
+            sh.normalized(&BTreeSet::from([e.clone()]))
+                .into_iter()
+                .next()
+                .unwrap_or_else(|| e.clone())
+        };
+        let old: BTreeSet<Id> = sh.models[0].packages[b].edges.iter().map(map).collect();
+        let new: BTreeSet<Id> = sh.model(role).packages[n]
+            .edges
+            .iter()
+            .map(|e| {
+                sh.normalized(&BTreeSet::from([e.clone()]))
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(|| e.clone())
+            })
+            .collect();
+        if old != new {
+            let mut f = facts(b, n);
+            f.push((
+                "detail",
+                format!("{n} depends on other targets than {b} did"),
+            ));
+            return Err(Refusal::new(codes::R14, vec![subject], f));
+        }
+    }
     let have = names(&sh.model(role).packages[n].edges);
     let wanted = names(&sh.models[0].packages[b].edges);
     if let Some(missing) = wanted.difference(&have).next() {
