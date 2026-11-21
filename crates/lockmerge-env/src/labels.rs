@@ -10,7 +10,7 @@
 //! | `git cherry-pick`, `git rebase` (merge backend) | `parent of <short> (<subject>)` | `<short> (<subject>)` |
 //!
 //! `git revert` (`%S` and `%Y` swapped roles) and the `--apply` rebase backend
-//! (`constructed fake ancestor`) are not identified. `%X` must be `HEAD`.
+//! (`constructed fake ancestor`, or `constructed merge base` in newer git) are not identified. `%X` must be `HEAD`.
 
 use lockmerge_core::Why;
 
@@ -193,6 +193,8 @@ mod tests {
         );
         // git rebase --apply
         assert!(parse_labels("constructed fake ancestor", "HEAD", "side commit", &[]).is_err());
+        // the same backend in newer git words the base label differently
+        assert!(parse_labels("constructed merge base", "HEAD", "side commit", &[]).is_err());
         // standalone, merge-file and merge-tree style labels
         assert!(parse_labels("", "", "", &[]).is_err());
         assert!(parse_labels("base", "ours", "theirs", &[]).is_err());

@@ -199,7 +199,7 @@ fn rebase_apply_backend_is_unavailable() {
     f.repo.git(&["checkout", "-q", "side"]);
     f.repo.output(&["rebase", "--apply", "main"]);
     let line = f.repo.only_log();
-    assert!(line.contains("constructed fake ancestor"), "{line}");
+    assert!(line.contains("unknown base label"), "{line}");
     assert!(line.starts_with("unavailable "), "{line}");
 }
 
