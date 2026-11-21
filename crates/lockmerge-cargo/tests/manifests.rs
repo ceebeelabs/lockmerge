@@ -507,6 +507,7 @@ fn m2_refuses_cycles_and_unproven_feature_combinations_for_the_stated_reason() {
     for (name, why) in [
         ("refuse-dependency-cycle", "dependency cycle"),
         ("refuse-forwarded-features-combined", "not proven to select"),
+        ("refuse-git-requirement-not-met", "does not satisfy"),
     ] {
         let case = load("M2", name);
         for case in [case.swapped(), case] {

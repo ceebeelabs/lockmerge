@@ -185,6 +185,11 @@ fn m2(
                 }
             }
             (Some(src), Source::Git(_)) if src.starts_with("git+") => {
+                if let Some(req) = &d.req
+                    && !admits(req, &t.version)
+                {
+                    return Err(format!("{t} does not satisfy {req}"));
+                }
                 let same = |p: &Package| targets(&p.edges, &t.name) == BTreeSet::from([t]);
                 if !(same(base) && same(ours) && same(theirs)) {
                     return Err(format!(
