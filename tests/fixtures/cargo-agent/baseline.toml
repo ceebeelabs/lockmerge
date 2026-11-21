@@ -1,7 +1,8 @@
 # The ratchet of `lockmerge-bench check` for the agent-style corpus
 # (docs/02-oracle.md sections 5 and 6.3, ADR 0006). Baseline: the rate measured
-# on 2026-11-21 with the manifest rules of #37 (PR #71), before the R15 proof
-# of #38. Lowering a value needs the owner's review.
+# on 2026-11-21 with the manifest rules of #37 (PR #71) and the R15 proof of
+# #38 (PR #78), with each case's reduced registry index files (PR #84).
+# Lowering a value needs the owner's review.
 min_cases = 59
 min_reachable = 59
 # The reachable resolution rate must be at least min_rate_resolved / min_rate_of.
@@ -9,6 +10,6 @@ min_rate_resolved = 3
 min_rate_of = 32
 max_unverified = 0
 # The regression ratchet (ADR 0017): git-clean-correct cases lockmerge refuses.
-# It may only go down. The first value is the count measured on this corpus
-# (21 refusals of 27 git-clean-correct cases).
-max_regressions = 21
+# It may only go down. Measured with the index files: 19 refusals of 27
+# git-clean-correct cases (21 before them).
+max_regressions = 19
