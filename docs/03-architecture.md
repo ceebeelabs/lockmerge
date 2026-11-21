@@ -238,8 +238,8 @@ pub struct Findings { pub proofs: Vec<Proof>, pub refusals: Vec<Refusal> } // al
   `Outcome::Clean`.
 - Refusal is the default. Adding a rule can only add accepted cases. A
   forgotten case refuses.
-- Limits: a rule author can write a wrong rule. A format can hand-roll
-  `Proof::new` with a true-sounding rule. The defenses are review, the pair
+- Limits: a rule author can write a wrong rule. A format can mint a `Proof`
+  through `Context::proof` with a true-sounding rule. The defenses are review, the pair
   test below, and the zero-wrong-merge gate with the benchmark's `applied`
   table, which shows which rule made a wrong merge if one happens.
 

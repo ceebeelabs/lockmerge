@@ -4,7 +4,7 @@ A seed backlog of 33 entries, as the charter asks. Each has a short
 description, acceptance criteria tied to tests or the benchmark, dependencies
 and a size (S, M or L). Entries 1 to 9 are already filed as issues; their
 title, dependencies and size come from the issues, and their scope is not
-rewritten here. Entries 10 to 28 are marked "to file". The benchmark harness
+rewritten here. Entries 10 to 33 are marked "to file". The benchmark harness
 and the core trait come first, so the per-format work can then run in
 parallel. Dependencies name an entry by number and title or by issue.
 
