@@ -23,3 +23,57 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Test
         run: cargo test --workspace
+
+  # ADR 0010 decision 5: git does not promise its merge driver labels, so the
+  # real-git tests of lockmerge-env run on the oldest supported git and on the
+  # newest release. The oldest supported git is 2.44.0, the oldest known to
+  # expand %S, %X and %Y (git 2.39.5 and older pass them literally, and the
+  # driver then finds no commits). "latest" is the highest release tag that is
+  # not a release candidate, found when the job runs.
+  git-versions:
+    name: lockmerge-env on git ${{ matrix.git }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        git: ["2.44.0", "latest"]
+    steps:
+      - name: Check out the pull request
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Resolve the git version
+        id: git-version
+        run: |
+          version="${{ matrix.git }}"
+          if [ "$version" = latest ]; then
+            version=$(git ls-remote --tags --refs https://github.com/git/git 'v2.*' \
+              | sed 's|.*refs/tags/v||' | grep -v -- '-rc' | sort -V | tail -n 1)
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Cache the built git
+        id: git-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: ~/git-${{ steps.git-version.outputs.version }}
+          key: git-${{ runner.os }}-${{ steps.git-version.outputs.version }}-gnu17
+      - name: Build git
+        if: steps.git-cache.outputs.cache-hit != 'true'
+        run: |
+          version="${{ steps.git-version.outputs.version }}"
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libz-dev
+          git clone --quiet --depth 1 --branch "v$version" https://github.com/git/git "$RUNNER_TEMP/git-src"
+          # GCC 15 defaults to C23, where `unreachable` is a macro that old git
+          # sources redefine; build with the C standard they were written for.
+          make -C "$RUNNER_TEMP/git-src" -j"$(nproc)" prefix="$HOME/git-$version" \
+            CFLAGS="-O2 -std=gnu17" \
+            NO_GETTEXT=1 NO_TCLTK=1 NO_CURL=1 NO_EXPAT=1 NO_PERL=1 NO_PYTHON=1 NO_OPENSSL=1 install
+      - name: Put git on PATH
+        run: echo "$HOME/git-${{ steps.git-version.outputs.version }}/bin" >> "$GITHUB_PATH"
+      - name: Show the git version
+        run: |
+          which git
+          git --version
+      - name: Test lockmerge-env
+        run: cargo test -p lockmerge-env
