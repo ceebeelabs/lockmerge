@@ -384,9 +384,12 @@ fn render(lock: &Lock, comments: &[&str]) -> Result<String, String> {
         let deps: Vec<String> = keyed.into_iter().map(|(_, t)| t).collect();
         blocks.push(block("[[package]]", p, &deps)?);
     }
-    // Document schema order: packages, `[metadata]`, then `[[patch.unused]]`.
-    // Key quoting and placement are unverified against Cargo; a mismatch makes
-    // the file not canonical, which is the strict direction.
+    // Cargo's writer emits `[[patch.unused]]` before `[metadata]`. The key
+    // quoting of metadata is unverified; a mismatch makes the file not
+    // canonical, which is the strict direction.
+    for p in sorted(&lock.patch_unused)? {
+        blocks.push(block("[[patch.unused]]", &p, &[])?);
+    }
     if !lock.metadata.is_empty() {
         let mut m = String::from("[metadata]\n");
         for (k, v) in &lock.metadata {
@@ -397,9 +400,6 @@ fn render(lock: &Lock, comments: &[&str]) -> Result<String, String> {
             m.push_str(&format!("{key} = {}\n", quote(v)?));
         }
         blocks.push(m);
-    }
-    for p in sorted(&lock.patch_unused)? {
-        blocks.push(block("[[patch.unused]]", &p, &[])?);
     }
     let mut out = String::new();
     for c in comments {
@@ -450,6 +450,19 @@ impl Oracle for CargoOracle {
         for p in &lock.packages {
             for d in &p.dependencies {
                 referenced.insert(resolve(d, &lock.packages)?);
+            }
+        }
+        // A replacement is a package with no dependencies of its own, whose
+        // target is exactly one package of the file.
+        for p in lock.packages.iter().chain(&lock.patch_unused) {
+            if let Some(r) = &p.replace {
+                if !p.dependencies.is_empty() {
+                    return Err(format!("{} has both dependencies and replace", p.id()));
+                }
+                if !r.contains(" (") {
+                    return Err(format!("replace `{r}` is not a full package id"));
+                }
+                referenced.insert(resolve(r, &lock.packages)?);
             }
         }
         for (i, p) in lock.packages.iter().enumerate() {
@@ -574,10 +587,11 @@ mod tests {
 
     #[test]
     fn l0_renders_metadata_and_replace() {
-        let with_meta = format!("{GOOD}\n[metadata]\ncustom = \"x\"\n");
-        CargoOracle.canonical(&lock(4, &with_meta)).unwrap();
-        // Neighbor: metadata that is not where the schema puts it.
-        let wrong = format!("[metadata]\ncustom = \"x\"\n\n{GOOD}");
+        let unused = "[[patch.unused]]\nname = \"zz\"\nversion = \"1.0.0\"\n";
+        let both = format!("{GOOD}\n{unused}\n[metadata]\ncustom = \"x\"\n");
+        CargoOracle.canonical(&lock(4, &both)).unwrap();
+        // Neighbor: metadata before the unused patches is not Cargo's order.
+        let wrong = format!("{GOOD}\n[metadata]\ncustom = \"x\"\n\n{unused}");
         assert!(CargoOracle.canonical(&lock(4, &wrong)).is_err());
         let with_replace = GOOD.replace(
             "checksum = \"aa\"\n",
@@ -590,6 +604,41 @@ mod tests {
             "replace = \"dep 1.0.0 (git+x)\"\nchecksum = \"aa\"\n",
         );
         assert!(CargoOracle.canonical(&lock(4, &swapped)).is_err());
+    }
+
+    #[test]
+    fn l1_validates_replacements() {
+        const SRC: &str = "registry+https://github.com/rust-lang/crates.io-index";
+        let target = format!("dep 1.0.0 ({SRC})");
+        // Accepted: a dependency-free package replaced by an existing one.
+        let ok = format!(
+            "{GOOD}\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"{target}\"\n"
+        );
+        CargoOracle.valid(&lock(4, &ok)).unwrap();
+        // Both dependencies and replace.
+        let both = GOOD.replace(
+            "dependencies = [\n \"dep\",\n]\n",
+            &format!("dependencies = [\n \"dep\",\n]\nreplace = \"{target}\"\n"),
+        );
+        assert!(
+            CargoOracle
+                .valid(&lock(4, &both))
+                .unwrap_err()
+                .contains("both dependencies and replace")
+        );
+        // Missing target.
+        let missing = ok.replace("dep 1.0.0 (", "gone 1.0.0 (");
+        assert!(
+            CargoOracle
+                .valid(&lock(4, &missing))
+                .unwrap_err()
+                .contains("names no package")
+        );
+        // Ambiguous target: a bare name matching two packages.
+        let ambiguous = format!(
+            "{GOOD}\n[[package]]\nname = \"dep\"\nversion = \"2.0.0\"\nsource = \"{SRC}\"\nchecksum = \"bb\"\n\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"dep 1.0.0\"\n"
+        );
+        assert!(CargoOracle.valid(&lock(4, &ambiguous)).is_err());
     }
 
     #[test]

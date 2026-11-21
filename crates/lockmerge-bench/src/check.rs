@@ -102,8 +102,15 @@ fn driver_dir(opts: &CheckOpts) -> Result<PathBuf, String> {
 
 #[cfg(unix)]
 fn is_executable(p: &Path) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(p).is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
+    // `test -x` asks the system whether this process may execute the file
+    // (access(2) with X_OK), so owner, group and other bits are applied to the
+    // current user, which a mode mask cannot do.
+    std::fs::metadata(p).is_ok_and(|m| m.is_file())
+        && std::process::Command::new("/bin/sh")
+            .args(["-c", "test -x \"$1\"", "sh"])
+            .arg(p)
+            .status()
+            .is_ok_and(|s| s.success())
 }
 
 #[cfg(not(unix))]
@@ -370,6 +377,22 @@ mod tests {
         // Rejected up front, whatever PATH holds: no fallback is possible.
         let err = driver_dir(&opts).unwrap_err();
         assert!(err.contains("not an executable file"), "{err}");
+        // Mode 0645: execute bits exist, but not for the owner, who is the
+        // current user. Another user's bits do not make it runnable.
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let p = opts.driver_bin.clone().unwrap();
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o645)).unwrap();
+            let root = std::process::Command::new("id")
+                .arg("-u")
+                .output()
+                .unwrap()
+                .stdout
+                == b"0\n";
+            if !root {
+                assert!(driver_dir(&opts).is_err());
+            }
+        }
         // The same file made executable is accepted.
         make_exe(&opts.driver_bin.clone().unwrap());
         assert!(driver_dir(&opts).is_ok());

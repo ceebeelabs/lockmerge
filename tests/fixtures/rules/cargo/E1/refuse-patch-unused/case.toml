@@ -1,0 +1,4 @@
+source = "Hand-built: ours has a `[[patch.unused]]` entry."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R10"

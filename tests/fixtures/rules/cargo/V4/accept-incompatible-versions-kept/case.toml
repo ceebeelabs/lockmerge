@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Base uses rand 0.6.5 and 0.7.3, which are not semver compatible; ours adds the member extra using anyhow, theirs drops the member tool."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "core.B3", "core.B1", "core.B1", "core.B3", "core.B1", "core.B1", "core.B1", "core.B4", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

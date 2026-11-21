@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. wrapper is an excluded path dependency with activate = [dep:leaf] and extra = [leaf?/extra]. Ours enables activate, which adds wrapper's edge to leaf; theirs adds the member cli2 enabling extra and drops the member tool."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

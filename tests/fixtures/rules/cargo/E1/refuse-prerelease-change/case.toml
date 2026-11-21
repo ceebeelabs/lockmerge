@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Ours moves itoa from 1.0.0 to 1.1.0-rc.1; theirs drops the unused member tool."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R11"
