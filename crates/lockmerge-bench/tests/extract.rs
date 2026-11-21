@@ -446,3 +446,68 @@ fn rerunning_with_a_smaller_cap_removes_the_cases_that_are_no_longer_selected() 
         }
     }
 }
+
+/// A path package that lives in a nested, virtual workspace and inherits from
+/// that workspace's root manifest, which has no `[package]` and so has no name
+/// to select by.
+#[test]
+fn the_virtual_workspace_root_a_path_member_inherits_from_is_saved() {
+    let r = Repo::new();
+    r.write("LICENSE-MIT", MIT);
+    r.write("Cargo.toml", "[package]\nname = \"app\"\n");
+    r.write(
+        "vendor/ws/Cargo.toml",
+        "[workspace]\nmembers = [\"member\", \"other\"]\n[workspace.package]\nversion = \"0.1.0\"\n",
+    );
+    r.write(
+        "vendor/ws/member/Cargo.toml",
+        "[package]\nname = \"member\"\nversion.workspace = true\n",
+    );
+    r.write(
+        "vendor/ws/other/Cargo.toml",
+        "[package]\nname = \"other\"\nversion.workspace = true\n",
+    );
+    // Not the nearest workspace root of any saved member, and not a root at all.
+    r.write(
+        "vendor/other-ws/Cargo.toml",
+        "[workspace]\nmembers = [\"x\"]\n",
+    );
+    r.write(
+        "vendor/other-ws/x/Cargo.toml",
+        "[package]\nname = \"x\"\nversion = \"1.0.0\"\n",
+    );
+    r.write("vendor/Cargo.toml", "[package]\nname = \"vendor-only\"\n");
+    r.write("Cargo.lock", &lock(&["pa"]));
+    r.commit("root");
+    let base = r.head();
+    r.git(&["checkout", "-q", "-b", "ours", &base]);
+    r.write("Cargo.lock", &lock(&["pa", "pb"]));
+    r.commit("ours adds pb");
+    r.git(&["checkout", "-q", "-b", "theirs", &base]);
+    r.write("Cargo.lock", &lock(&["pa", "pc"]));
+    r.commit("theirs adds pc");
+    r.git(&["checkout", "-q", "ours"]);
+    let merge = r.merge("theirs", &lock(&["pa", "pb", "pc"]));
+    r.git(&["checkout", "-q", "-B", "main"]);
+
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&source(&r, 10), &opts(&out, &cache)).unwrap();
+    let dir = case_dir(&out, &merge);
+    for side in ["base", "ours", "theirs"] {
+        let m = |p: &str| dir.join(format!("manifests/{side}/{p}"));
+        assert!(m("vendor/ws/member/Cargo.toml").is_file());
+        assert!(m("vendor/ws/Cargo.toml").is_file(), "{side}: root missing");
+        assert_eq!(
+            fs::read_to_string(m("vendor/ws/Cargo.toml")).unwrap(),
+            "[workspace]\nmembers = [\"member\", \"other\"]\n[workspace.package]\nversion = \"0.1.0\"\n"
+        );
+        // The neighbors stay out: a member that is not a path package, an
+        // unrelated workspace root, and a manifest that is no workspace root.
+        assert!(!m("vendor/ws/other/Cargo.toml").exists());
+        assert!(!m("vendor/other-ws/Cargo.toml").exists());
+        assert!(!m("vendor/other-ws/x/Cargo.toml").exists());
+        assert!(!m("vendor/Cargo.toml").exists());
+    }
+    let c = load_case("cargo", "cargo/t-repo/v", &dir).unwrap();
+    assert!(c.problems.is_empty(), "{:?}", c.problems);
+}
