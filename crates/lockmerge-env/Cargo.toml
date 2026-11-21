@@ -1,0 +1,19 @@
+[package]
+name = "lockmerge-env"
+description = "Side effects of the lockmerge driver: commit identification and manifests from git"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dependencies]
+lockmerge-core = { path = "../lockmerge-core" }
+
+# A tiny driver for the integration tests: it records what identification
+# returns when real git runs it. It is not part of the lockmerge binary.
+[[bin]]
+name = "env-probe"
+path = "src/bin/env-probe.rs"
+test = false
