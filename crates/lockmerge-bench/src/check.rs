@@ -2,7 +2,9 @@
 //! and enforce the gate.
 
 use crate::attribution::{attribute, disagreement};
-use crate::case::{ECOSYSTEMS, REQUIRED_ECOSYSTEMS, case_dirs, load_case, tree_bytes};
+use crate::case::{
+    ECOSYSTEMS, REQUIRED_ECOSYSTEMS, TreeSize, case_dirs, load_case, over_budget, tree_size,
+};
 use crate::classify::{
     CaseView, Class, GitOutcome, Run, classify, classify_git, foreign_ids, kind_of,
 };
@@ -42,7 +44,8 @@ pub struct EcoReport {
     pub metrics: Metrics,
     pub baseline: Option<Baseline>,
     pub results: Vec<CaseResult>,
-    pub bytes: u64,
+    /// Deduplicated (checked against the budget) and raw on-disk bytes.
+    pub size: TreeSize,
 }
 
 pub struct CheckOutcome {
@@ -135,7 +138,7 @@ pub fn check(opts: &CheckOpts, formats: &[&dyn Format]) -> CheckOutcome {
 
     let mut ecosystems = Vec::new();
     let mut driver: Option<Result<PathBuf, String>> = None;
-    let mut total_bytes = 0u64;
+    let mut total = TreeSize::default();
 
     for eco in REQUIRED_ECOSYSTEMS {
         if !opts.fixtures.join(eco).is_dir() {
@@ -162,20 +165,16 @@ pub fn check(opts: &CheckOpts, formats: &[&dyn Format]) -> CheckOutcome {
         if let Err(e) = check_index(&eco_dir) {
             failures.push(format!("{eco}: {e}"));
         }
-        let bytes = match tree_bytes(&eco_dir) {
-            Ok(b) => b,
+        let size = match tree_size(&eco_dir) {
+            Ok(s) => s,
             Err(e) => {
                 failures.push(format!("{eco}: {e}"));
-                0
+                TreeSize::default()
             }
         };
-        total_bytes += bytes;
-        if bytes > budget_of(eco) {
-            failures.push(format!(
-                "{eco}: fixtures take {bytes} bytes, over the budget of {}",
-                budget_of(eco)
-            ));
-        }
+        total.unique += size.unique;
+        total.raw += size.raw;
+        failures.extend(over_budget(eco, size, budget_of(eco)));
         let Some(oracle) = for_ecosystem(eco) else {
             failures.push(format!("{eco}: there is no oracle for this ecosystem yet"));
             continue;
@@ -269,14 +268,10 @@ pub fn check(opts: &CheckOpts, formats: &[&dyn Format]) -> CheckOutcome {
             metrics,
             baseline,
             results,
-            bytes,
+            size,
         });
     }
-    if total_bytes > TOTAL_BUDGET {
-        failures.push(format!(
-            "fixtures take {total_bytes} bytes in total, over the budget of {TOTAL_BUDGET}"
-        ));
-    }
+    failures.extend(over_budget("total", total, TOTAL_BUDGET));
 
     if let Some(release) = &opts.release {
         if release == "v1" {
