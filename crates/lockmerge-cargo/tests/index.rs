@@ -247,7 +247,6 @@ fn each_refusal_names_its_reason() {
         ("refuse-entry-missing", "no index entry matches"),
         ("refuse-cache-absent", "no index entry matches"),
         ("refuse-unknown-cache-format", "no index entry matches"),
-        ("refuse-git-package-already-in-the-lockfile", "a git source"),
         ("refuse-git-id-on-ours", "not a registry package"),
         ("refuse-git-id-on-theirs", "not a registry package"),
     ] {
@@ -263,6 +262,7 @@ fn the_neighbors_that_merge_do() {
         "accept-different-links",
         "accept-several-index-directories",
         "accept-path-member-links-different",
+        "accept-git-package-held-by-both",
     ] {
         assert!(detail(name).is_none(), "{name}");
     }

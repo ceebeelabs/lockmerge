@@ -268,11 +268,20 @@ fn registry_links(
     }
 }
 
+/// A git id that both ours and theirs hold (ADR 0020).
+fn held_by_both(id: &Id, sh: &Shared) -> bool {
+    !id.is_registry()
+        && !id.is_path()
+        && sh.model(Role::Ours).packages.contains_key(id)
+        && sh.model(Role::Theirs).packages.contains_key(id)
+}
+
 /// V6: the native-links proof over the merged set, from the registry index
 /// cache and the merged manifests of the path packages. Every package must
 /// give its `links` (or the absence of one) and no value may repeat. A git
 /// source, a registry package without a matching index entry and a path
 /// package whose manifest is not read all refuse, and so does an absent cache.
+/// A git id both ours and theirs hold is not read (ADR 0020).
 fn native_links(
     items: &[(&Id, &Package)],
     sh: &Shared,
@@ -316,6 +325,10 @@ fn native_links(
                     ));
                 }
             }
+        } else if held_by_both(id, sh) {
+            // ADR 0020: each side's resolution held it with all its other
+            // packages, so it cannot collide with an id only one side added.
+            continue;
         } else {
             return Err(fail(
                 vec![id.to_string()],

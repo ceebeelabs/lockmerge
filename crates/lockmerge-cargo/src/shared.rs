@@ -3,7 +3,7 @@
 //! them), the both-sides-bumped groups the envelope proved (M1) and the
 //! removals pending for the prune step (M3).
 
-use crate::find::{Found, Side, check_patch, covers, covers_combined, find_with, read_side};
+use crate::find::{Found, Side, check_patch, covers_combined, find_with, read_side};
 use crate::manifest::Unread;
 use crate::model::{Id, Lock};
 use lockmerge_core::{Context, Role};
@@ -168,15 +168,15 @@ impl Shared {
     /// path package in any lockfile there is no manifest that selects
     /// features, and the check holds.
     pub fn covers(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
-        self.covers_as(role, cx, false)
+        self.covers_as(role, cx)
     }
 
     /// Coverage for a merge that combines both branches' changes (M2).
     pub fn covers_combined(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
-        self.covers_as(role, cx, true)
+        self.covers_as(role, cx)
     }
 
-    fn covers_as(&self, role: Role, cx: &Context<'_>, combined: bool) -> Result<(), Fail> {
+    fn covers_as(&self, role: Role, cx: &Context<'_>) -> Result<(), Fail> {
         if self.path_ids().is_empty() {
             return Ok(());
         }
@@ -189,9 +189,6 @@ impl Shared {
             .keys()
             .map(|id| id.name.as_str())
             .collect();
-        if !combined {
-            return covers(found, side, base, &names).map_err(Fail::Rule);
-        }
         // The other branch added the declarations; a held crate is proven by
         // its entries being the same in both lockfiles.
         let (mine, adder) = (self.model(role), self.model(other(role)));

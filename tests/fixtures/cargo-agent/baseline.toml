@@ -6,7 +6,7 @@
 min_cases = 59
 min_reachable = 59
 # The reachable resolution rate must be at least min_rate_resolved / min_rate_of.
-min_rate_resolved = 14
+min_rate_resolved = 19
 min_rate_of = 32
 max_unverified = 0
 # The regression ratchet (ADR 0017): git-clean-correct cases lockmerge refuses.
