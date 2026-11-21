@@ -1,0 +1,24 @@
+repository = "https://github.com/sharkdp/bat.git"
+license = "MIT OR Apache-2.0"
+merge_commit = "c5731b9079e7e53b1e5dbe8d732bdac6ed392a0a"
+parents = ["458e818ab4c971844dcd124e8d538c7b126c495a", "57cc0d843567eef566540074b391f8212d859871"]
+base_commit = "1b2c69aee86d4c1f58843c9ebbea0d32e3a73dd6"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+extractor_version = "0.0.0"
+extracted_on = "2026-11-21"
+
+[sha256]
+"base" = "29135bdc93840edeb99761c69f82c451a759b7445fe9f14f41954681981c8abd"
+"ours" = "ecb1260e410cc11ef985f355e97a9f73081eb8c7605d7f08b3e7a600d72bdf19"
+"theirs" = "b592da06f7d5935c48fbdf9cf1b0214e8869b7b9da7e625ae8903172c5162a47"
+"expected" = "a02e5c72807a900859c8892da8450218b70dd1705ac28a1ec01899eb61058aee"
+"manifests/base/Cargo.toml" = "524d44bebc7e04cdea044017b69e444e3102860200c035424c2a1c65ce1d5324"
+"manifests/base/tests/syntax-tests/source/TOML/Cargo.toml" = "144783e5d4ada600fe89f4e3bfbc14bf1ee2961a2b5135103040f3519751018d"
+"manifests/ours/Cargo.toml" = "842e6791e3b8460e61451d324bbf62bc38098cb5989454315cbf87362da3214d"
+"manifests/ours/tests/syntax-tests/source/TOML/Cargo.toml" = "144783e5d4ada600fe89f4e3bfbc14bf1ee2961a2b5135103040f3519751018d"
+"manifests/theirs/Cargo.toml" = "4f4ca89f8d91f2c5e9b51adb883beb7fc96a9294275fe30c5292b5be275e96e7"
+"manifests/theirs/tests/syntax-tests/source/TOML/Cargo.toml" = "144783e5d4ada600fe89f4e3bfbc14bf1ee2961a2b5135103040f3519751018d"

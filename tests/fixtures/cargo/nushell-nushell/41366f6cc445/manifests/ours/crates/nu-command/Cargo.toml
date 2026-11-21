@@ -1,0 +1,20 @@
+[package]
+name = "nu-command"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+nu-engine = { path = "../nu-engine" }
+nu-json = { path = "../nu-json" }
+nu-path = { path = "../nu-path" }
+nu-protocol = { path = "../nu-protocol" }
+nu-table = { path = "../nu-table" }
+nu-parser = { path = "../nu-parser" }
+
+# Potential dependencies for extras
+glob = "0.3.0"
+thiserror = "1.0.29"
+sysinfo = "0.20.4"
+chrono = { version="0.4.19", features=["serde"] }
