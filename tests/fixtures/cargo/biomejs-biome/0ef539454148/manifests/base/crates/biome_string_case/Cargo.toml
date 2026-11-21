@@ -1,0 +1,29 @@
+[package]
+name                 = "biome_string_case"
+version              = "0.5.7"
+authors.workspace    = true
+edition.workspace    = true
+description          = "Utilities to convert string cases"
+homepage.workspace   = true
+repository.workspace = true
+license.workspace    = true
+keywords.workspace   = true
+categories.workspace = true
+publish              = true
+
+[[bench]]
+harness = false
+name    = "case_insensitive_search"
+
+[dependencies]
+biome_rowan = { workspace = true, optional = true }
+caseless    = "0.2.2"
+
+[dev-dependencies]
+divan = { package = "codspeed-divan-compat", version = "=5.0.1" }
+
+[features]
+biome_rowan = ["dep:biome_rowan"]
+
+[lints]
+workspace = true

@@ -1,0 +1,99 @@
+# Public repositories for the real Cargo.lock corpus (docs/02-oracle.md sections 2 and 6.1).
+# Pinned tips checked 2026-11-21. Owner-side extraction only.
+
+[[source]]
+url = "https://github.com/sharkdp/bat.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "e118c20e4861dee2a7cdab1e5316ccffa3b29672"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/sharkdp/fd.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "b80cd53e65615060a62a5ea349a0d78b65d7029e"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/lapce/lapce.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "9e8317c84e9540ac0b09689dd9f9d4fafe44ac00"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/rust-lang/cargo.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "be13e5e9129a6ba5208ccfa5e2b36bb7f06837a3"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/astral-sh/ruff.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "cd2d973241d7f5bcba588e94cc686d9e356a4621"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/nushell/nushell.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "f6e23c4ec629c9c5f218113358ce7af04f85181e"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/zellij-org/zellij.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "62cfa6c36dab1cba7f40cb41b4cf34aaed13db72"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/alacritty/alacritty.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "791efff6d74c66bee390c259e322626ca93aadb6"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/oxc-project/oxc.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "209f078ba8572400fbf75e59cbd48fa8c291e71a"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/biomejs/biome.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "426c33de575da7ce7f4588727b9367125dfa6827"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/swc-project/swc.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "860704459be5243c0e8a939a770015327113a715"
+max_cases = 8
+max_file_bytes = 250000
+
+[[source]]
+url = "https://github.com/tauri-apps/tauri.git"
+ecosystem = "cargo"
+lockfiles = ["Cargo.lock"]
+revision = "bf10f005ef6a7021f05e010927d57973784d7e7a"
+max_cases = 8
+max_file_bytes = 250000
+

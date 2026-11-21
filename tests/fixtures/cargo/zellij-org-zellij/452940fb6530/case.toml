@@ -1,0 +1,33 @@
+repository = "https://github.com/zellij-org/zellij.git"
+license = "MIT"
+merge_commit = "452940fb6530bc508d26c9ebaf6dd784751f6351"
+parents = ["61bb74ebbd16503a385d0345508abb6b0adaf2fb", "099861ff5b0f83773ca0af4c70e6e39be3b0336c"]
+base_commit = "325fc5620f07412381dd47dcf7cf9e141a3d66bf"
+lockfile_path = "Cargo.lock"
+ours_is = "parent1"
+kind = "reachable"
+foreign_ids_count = 0
+foreign_ids = []
+extractor_version = "0.0.0"
+extracted_on = "2026-11-21"
+
+[sha256]
+"base" = "5d5c8b727ae079a83e040563a3eb11c576f01424f1bb2a081fb7b475642b333b"
+"ours" = "ee27954c4f6469b508b340fe47af886712b573c457375f578e1eb6b04ac8b0f3"
+"theirs" = "0419ebd5f24efdb31a891a2710dc633e0d0e56137b14f3566512c0417e0dca1d"
+"expected" = "93d7fefe40b10eebf0550f21a0af0bde16968fc6a20267d06ef17b2b88afe250"
+"manifests/base/Cargo.toml" = "7e48a2cc0e71a7d06eebce8a8a648ef0d88f8dbf1c3738c0eb58ec76ed5b52c9"
+"manifests/base/default-plugins/status-bar/Cargo.toml" = "8ea701d319d6e727a8595f415857931bfcf80f39889debecf2bbb644f88671a1"
+"manifests/base/default-plugins/strider/Cargo.toml" = "27097aed39d21876d2b39d0e64d5df6e0e90eb2e1345fad34b897c957d47b281"
+"manifests/base/default-plugins/tab-bar/Cargo.toml" = "1f055ee32d7dacba17bf89db6a770482903c8ae074b3d552a63bb3f833d25e5f"
+"manifests/base/zellij-tile/Cargo.toml" = "db3318c9698b8e612ca7298121ab4ea3bafe2e3c7bfce3a0088d6df31aca471b"
+"manifests/ours/Cargo.toml" = "46d1ebb53ba5b90fa62b3bae48365547c300a3adda65ca2f44698f3f5709eaab"
+"manifests/ours/default-plugins/status-bar/Cargo.toml" = "8ea701d319d6e727a8595f415857931bfcf80f39889debecf2bbb644f88671a1"
+"manifests/ours/default-plugins/strider/Cargo.toml" = "27097aed39d21876d2b39d0e64d5df6e0e90eb2e1345fad34b897c957d47b281"
+"manifests/ours/default-plugins/tab-bar/Cargo.toml" = "1f055ee32d7dacba17bf89db6a770482903c8ae074b3d552a63bb3f833d25e5f"
+"manifests/ours/zellij-tile/Cargo.toml" = "eca4ca55bc6aa6b8931cc86d1bb6a378ff7fe1d326fafe72fe562ad2e5538e68"
+"manifests/theirs/Cargo.toml" = "9a1fcc93259133de8892b30e22d14f7b7c32eda76c540d0a2ca429fd94827777"
+"manifests/theirs/default-plugins/status-bar/Cargo.toml" = "8ea701d319d6e727a8595f415857931bfcf80f39889debecf2bbb644f88671a1"
+"manifests/theirs/default-plugins/strider/Cargo.toml" = "27097aed39d21876d2b39d0e64d5df6e0e90eb2e1345fad34b897c957d47b281"
+"manifests/theirs/default-plugins/tab-bar/Cargo.toml" = "1f055ee32d7dacba17bf89db6a770482903c8ae074b3d552a63bb3f833d25e5f"
+"manifests/theirs/zellij-tile/Cargo.toml" = "db3318c9698b8e612ca7298121ab4ea3bafe2e3c7bfce3a0088d6df31aca471b"
