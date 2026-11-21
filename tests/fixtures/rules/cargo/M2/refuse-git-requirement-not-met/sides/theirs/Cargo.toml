@@ -1,0 +1,6 @@
+[workspace]
+members = ["app", "tool"]
+resolver = "2"
+
+[workspace.dependencies]
+g = { git = "https://example.test/g", version = "2" }

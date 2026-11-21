@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. The same edges, but the text merge of app's manifest conflicts."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

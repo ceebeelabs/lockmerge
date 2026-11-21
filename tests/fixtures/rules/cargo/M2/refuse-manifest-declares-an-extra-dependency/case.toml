@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. Same edges, but theirs' manifest also declares anyhow, which neither lockfile has an edge for."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

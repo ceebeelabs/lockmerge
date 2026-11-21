@@ -3,14 +3,14 @@
 
 use crate::codes::{self, E1, V2, V3, V4, V5};
 use crate::model::{Id, Lock, Package, compat_class};
+use crate::moves;
 use crate::parse::role_name;
-use lockmerge_core::{Conflict, Context, Draft, Findings, Proof, Refusal, Role, Verdict};
+use crate::shared::{ROLES, Shared};
+use lockmerge_core::{Context, Draft, Findings, Proof, Refusal, Role};
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet};
 
-const ROLES: [Role; 3] = [Role::Base, Role::Ours, Role::Theirs];
-
-fn refusal(
+pub(crate) fn refusal(
     code: lockmerge_core::ReasonCode,
     subject: String,
     facts: Vec<(&'static str, String)>,
@@ -20,9 +20,10 @@ fn refusal(
 
 /// What must agree across the three inputs. Checked in a fixed order: version
 /// (R1), checksums (R2), sources (R12), prerelease changes (R11), versions both
-/// sides moved differently (R3), version moves (R14), crates only each side added (R15), and the sort
-/// order of ties (V5).
-pub fn envelope(models: [&Lock; 3], cx: &Context<'_>) -> Result<Vec<Proof>, Refusal> {
+/// sides bumped (M1, else R3), changes one side made to existing packages (D,
+/// F, B1, C, else R14), crates only each side added (R15), and the sort order
+/// of ties (V5).
+pub fn envelope(models: [&Lock; 3], sh: &Shared, cx: &Context<'_>) -> Result<Vec<Proof>, Refusal> {
     let version = models[0].version;
     if let Some(i) = (1..3).find(|&i| models[i].version != version) {
         return Err(refusal(
@@ -40,11 +41,12 @@ pub fn envelope(models: [&Lock; 3], cx: &Context<'_>) -> Result<Vec<Proof>, Refu
     checksums(&models)?;
     sources(&models)?;
     prereleases(&models)?;
-    both_moved(&models)?;
-    version_moves(&models)?;
-    different_additions(&models)?;
+    let mut proofs = vec![cx.proof(E1, vec![("version", version.to_string())])];
+    moves::groups(sh, cx)?;
+    moves::moves(sh, cx, &mut proofs)?;
+    different_additions(&models, sh)?;
     tie_order(&models)?;
-    Ok(vec![cx.proof(E1, vec![("version", version.to_string())])])
+    Ok(proofs)
 }
 
 /// R2: an id that appears in several inputs has one checksum.
@@ -111,16 +113,16 @@ fn show(set: &BTreeSet<&Option<String>>) -> String {
 /// A source without the precise git commit (`#<commit>`), so that an update of
 /// a git dependency, which changes the commit and maybe the version, is seen as
 /// a move of one crate. Full sources stay in the ids.
-fn crate_source(id: &Id) -> Option<String> {
+pub(crate) fn crate_source(id: &Id) -> Option<String> {
     id.source
         .as_deref()
         .map(|s| s.split_once('#').map_or(s, |(head, _)| head).to_string())
 }
 
-type CrateKey<'a> = (&'a str, Option<String>);
+pub(crate) type CrateKey<'a> = (&'a str, Option<String>);
 
 /// The versions of each (name, source without commit) in one input.
-fn versions_by_crate(m: &Lock) -> BTreeMap<CrateKey<'_>, BTreeSet<&Version>> {
+pub(crate) fn versions_by_crate(m: &Lock) -> BTreeMap<CrateKey<'_>, BTreeSet<&Version>> {
     let mut out: BTreeMap<_, BTreeSet<_>> = BTreeMap::new();
     for id in m.packages.keys() {
         out.entry((id.name.as_str(), crate_source(id)))
@@ -130,7 +132,7 @@ fn versions_by_crate(m: &Lock) -> BTreeMap<CrateKey<'_>, BTreeSet<&Version>> {
     out
 }
 
-fn crate_label(key: &CrateKey<'_>) -> String {
+pub(crate) fn crate_label(key: &CrateKey<'_>) -> String {
     match &key.1 {
         Some(s) => format!("{} ({s})", key.0),
         None => key.0.to_string(),
@@ -165,124 +167,7 @@ fn prereleases(models: &[&Lock; 3]) -> Result<(), Refusal> {
     Ok(())
 }
 
-/// R3: both sides removed the same base version of a crate and each added
-/// versions that are not the same set. Without M1 nothing can combine them.
-fn both_moved(models: &[&Lock; 3]) -> Result<(), Refusal> {
-    let (base, ours, theirs) = (
-        versions_by_crate(models[0]),
-        versions_by_crate(models[1]),
-        versions_by_crate(models[2]),
-    );
-    for (key, vb) in &base {
-        let (Some(vo), Some(vt)) = (ours.get(key), theirs.get(key)) else {
-            continue;
-        };
-        let removed_o: BTreeSet<_> = vb.difference(vo).collect();
-        let removed_t: BTreeSet<_> = vb.difference(vt).collect();
-        let added_o: BTreeSet<_> = vo.difference(vb).collect();
-        let added_t: BTreeSet<_> = vt.difference(vb).collect();
-        if !removed_o.is_disjoint(&removed_t)
-            && !added_o.is_empty()
-            && !added_t.is_empty()
-            && added_o != added_t
-        {
-            return Err(refusal(
-                codes::R3,
-                crate_label(key),
-                vec![("ours", join(&added_o)), ("theirs", join(&added_t))],
-            ));
-        }
-    }
-    Ok(())
-}
-
-/// R14: a side replaced a version of a crate present in base. Whether the move
-/// is safe depends on the manifests (B1, C, D and F of the format document):
-/// the other side may have pinned a requirement or changed a feature in
-/// `Cargo.toml` only. This crate reads no manifests yet, so it refuses. Pure
-/// additions and removals of a crate are not moves.
-fn version_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
-    let base = versions_by_crate(models[0]);
-    for i in [1, 2] {
-        let side = versions_by_crate(models[i]);
-        for (key, before) in &base {
-            let Some(after) = side.get(key) else { continue };
-            if after.difference(before).next().is_some()
-                && before.difference(after).next().is_some()
-            {
-                return Err(refusal(
-                    codes::R14,
-                    crate_label(key),
-                    vec![
-                        ("branch", role_name(ROLES[i]).to_string()),
-                        ("before", join(before)),
-                        ("after", join(after)),
-                    ],
-                ));
-            }
-        }
-    }
-    edge_moves(models)
-}
-
-fn targets<'a>(p: &'a Package, name: &str) -> BTreeSet<&'a Id> {
-    p.edges.iter().filter(|e| e.name == name).collect()
-}
-
-/// R14, through resolved edges: a package present in base and in a side whose
-/// dependency of one name now points at a different set of ids than before
-/// (including a contraction onto a target that already existed), any package
-/// that lost every edge of a name, or a registry or git package that gained a
-/// name. This catches moves that the inventory of
-/// versions misses: the old version stays for another dependent, or the new
-/// one was already present.
-fn edge_moves(models: &[&Lock; 3]) -> Result<(), Refusal> {
-    for i in [1, 2] {
-        for (id, before) in &models[0].packages {
-            let Some(after) = models[i].packages.get(id) else {
-                continue;
-            };
-            let names: BTreeSet<&str> = before
-                .edges
-                .iter()
-                .chain(&after.edges)
-                .map(|e| e.name.as_str())
-                .collect();
-            for name in names {
-                let (b, a) = (targets(before, name), targets(after, name));
-                // A name present on both sides with a different target set may be
-                // a move that collapses onto an existing target, which only the
-                // manifests can tell from a plain addition or removal. A name
-                // wholly added or removed is not a move.
-                let moved = !b.is_empty() && !a.is_empty() && a != b;
-                // Feature coverage. Features decide which optional edges a
-                // package has and reach it from dependents the other side may
-                // add, so a package of any kind (an excluded path dependency
-                // included) that loses every edge of a name, or gains a name
-                // (weak forwarding such as `leaf?/extra` adds edges that
-                // neither lockfile shows), changes only with manifest proof,
-                // which this crate cannot read yet.
-                let dropped = !b.is_empty() && a.is_empty();
-                let gained = b.is_empty() && !a.is_empty();
-                if moved || dropped || gained {
-                    return Err(refusal(
-                        codes::R14,
-                        id.to_string(),
-                        vec![
-                            ("branch", role_name(ROLES[i]).to_string()),
-                            ("dependency", name.to_string()),
-                            ("before", join(b)),
-                            ("after", join(a)),
-                        ],
-                    ));
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-fn join<T: std::fmt::Display>(items: impl IntoIterator<Item = T>) -> String {
+pub(crate) fn join<T: std::fmt::Display>(items: impl IntoIterator<Item = T>) -> String {
     items
         .into_iter()
         .map(|v| v.to_string())
@@ -295,12 +180,18 @@ fn join<T: std::fmt::Display>(items: impl IntoIterator<Item = T>) -> String {
 /// same native `links` library. For registry crates only the index can show
 /// that, and for path crates only their manifests; this crate reads neither
 /// yet, so the trigger always refuses, path packages included. Ids both sides
-/// added are not affected.
-fn different_additions(models: &[&Lock; 3]) -> Result<(), Refusal> {
+/// added are not affected, and neither is the lower version of a crate both
+/// sides bumped (M1), which the merge drops and so never puts beside anything.
+fn different_additions(models: &[&Lock; 3], sh: &Shared) -> Result<(), Refusal> {
+    let dropped: Vec<Id> = sh.groups.borrow().iter().map(|g| g.low.clone()).collect();
     let only = |a: &Lock, b: &Lock, base: &Lock| -> Vec<String> {
         a.packages
             .keys()
-            .filter(|id| !b.packages.contains_key(id) && !base.packages.contains_key(id))
+            .filter(|id| {
+                !b.packages.contains_key(id)
+                    && !base.packages.contains_key(id)
+                    && !dropped.contains(id)
+            })
             .map(|id| id.to_string())
             .collect()
     };
@@ -341,17 +232,22 @@ fn tie_order(models: &[&Lock; 3]) -> Result<(), Refusal> {
     Ok(())
 }
 
-/// A conflict the engine's base rules did not settle. No rule of this crate
-/// combines two changes to one package yet: every such change that matters is
-/// already refused by R14, and the engine refuses the rest as `core.UNPROVEN`.
-pub fn decide(_conflict: &Conflict<'_, Id, Package>) -> Verdict<Package> {
-    Verdict::NotApplicable
-}
-
 /// V2 to V5 on the merged set. Every check runs, so the report lists them all.
-pub fn validate(draft: &Draft<Id, Package>, cx: &Context<'_>) -> Findings {
+pub fn validate(draft: &Draft<Id, Package>, sh: &Shared, cx: &Context<'_>) -> Findings {
     let mut f = Findings::default();
     let items: Vec<(&Id, &Package)> = draft.iter().collect();
+
+    // R5: a package removed on one side and changed on the other that M3 did
+    // not prune is still there, so something still points at it.
+    for id in sh.pending.borrow().iter() {
+        if draft.contains_key(id) {
+            f.refusals.push(refusal(
+                codes::R5,
+                id.to_string(),
+                vec![("detail", "a package still depends on it".into())],
+            ));
+        }
+    }
 
     // V2: every edge resolves to a package of the merged set.
     let dangling: Vec<Refusal> = items

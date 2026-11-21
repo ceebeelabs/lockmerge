@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use lockmerge_core::{ManifestResult, Manifests, Why};
+use lockmerge_core::{ManifestResult, Manifests, Role, Why};
 
 use crate::labels::{Labels, is_full_sha, parse_labels};
 
@@ -379,5 +379,20 @@ impl Manifests for GitManifests {
     fn merged(&self, repo_path: &str) -> ManifestResult {
         self.try_merged(repo_path)
             .unwrap_or_else(ManifestResult::Unavailable)
+    }
+
+    fn side(&self, role: Role, repo_path: &str) -> Result<Vec<u8>, Why> {
+        let c = self.commits.as_ref().map_err(Clone::clone)?;
+        if !is_repo_path(repo_path) {
+            return Err(why(format!("{repo_path:?} is not a repository path")));
+        }
+        let commit = match role {
+            Role::Base => &c.base,
+            Role::Ours => &c.ours,
+            Role::Theirs => &c.theirs,
+        };
+        self.git
+            .blob(commit, repo_path)?
+            .ok_or_else(|| why(format!("{repo_path} is missing on {commit}")))
     }
 }

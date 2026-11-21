@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and cli with registry crates serde (which depends on dd), itoa and leaf; checksums are synthetic. Ours adds app's dependency on serde, which cli already uses; theirs adds app's dependency on leaf. The entry of serde (with its edge to dd) is the same in both lockfiles."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.M2", "core.B1", "core.B1", "core.B1", "core.B1", "core.B1", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

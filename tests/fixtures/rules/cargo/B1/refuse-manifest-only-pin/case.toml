@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool with registry crates; checksums are synthetic. Same shape, but theirs also pins app to serde = '=1.0.100' in its manifest, which the lockfile does not show: 1.0.101 fails the requirement."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.REQUIREMENT"

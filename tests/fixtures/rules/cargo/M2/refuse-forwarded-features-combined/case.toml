@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool, with wrapper an excluded path dependency of app that has optional itoa and serde, and registry crates; checksums are synthetic. Ours adds an edge to itoa and an app feature forwarding wrapper/itoa and wrapper/weak (serde?/derive); theirs adds an edge to serde and an app feature forwarding wrapper/serde. The names, requirements and paths all match, but together the features enable serde's derive dependency, which neither lockfile has."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

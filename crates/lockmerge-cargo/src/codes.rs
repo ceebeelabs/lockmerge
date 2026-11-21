@@ -19,10 +19,11 @@ pub const R2: ReasonCode = code("R2");
 pub const R3: ReasonCode = code("R3");
 /// An edge in the merged set points at no package.
 pub const R4: ReasonCode = code("R4");
-// R5 (removed on one side, changed on the other) and R6 (both sides changed a
-// path package) are not registered: every change they would refuse is already
-// refused earlier by R14, because the lockfile cannot show whether it is
-// safe. They come back with the manifest rules (#37).
+/// A package one branch removed and the other changed that M3 cannot drop.
+pub const R5: ReasonCode = code("R5");
+/// Both branches changed a path package's dependencies and M2 cannot combine
+/// them.
+pub const R6: ReasonCode = code("R6");
 /// A non-path package cannot be reached from a path package.
 pub const R7: ReasonCode = code("R7");
 /// Two semver-compatible versions of a registry crate in the merged set.
@@ -35,7 +36,8 @@ pub const R10: ReasonCode = code("R10");
 pub const R11: ReasonCode = code("R11");
 /// A source string changed for the same name and version.
 pub const R12: ReasonCode = code("R12");
-/// A version change needs the manifest rules, which this crate does not have.
+/// A rule needs the manifests and they are not available, not identifiable or
+/// not read exactly.
 pub const R14: ReasonCode = code("R14");
 /// Different registry or git ids added by each side need the native-links
 /// proof, which this crate does not have.
@@ -44,8 +46,22 @@ pub const R15: ReasonCode = code("R15");
 pub const CANON: ReasonCode = code("CANON");
 /// The merged set cannot be written in Cargo's form with certainty (V5).
 pub const UNWRITABLE: ReasonCode = code("UNWRITABLE");
+/// A branch moved a crate to a lower version (rule D).
+pub const DOWNGRADE: ReasonCode = code("DOWNGRADE");
+/// The merged manifests may request features the taken entry was not resolved
+/// with, or the entry lacks a dependency another version has (rules C and F).
+pub const FEATURES: ReasonCode = code("FEATURES");
+/// A path package's merged manifest does not admit the version taken (rule B1).
+pub const REQUIREMENT: ReasonCode = code("REQUIREMENT");
 
 pub const E1: &str = "cargo.E1";
+pub const M1: &str = "cargo.M1";
+pub const M2: &str = "cargo.M2";
+pub const M3: &str = "cargo.M3";
+pub const B1: &str = "cargo.B1";
+pub const C: &str = "cargo.C";
+pub const D: &str = "cargo.D";
+pub const F: &str = "cargo.F";
 pub const V2: &str = "cargo.V2";
 pub const V3: &str = "cargo.V3";
 pub const V4: &str = "cargo.V4";
@@ -56,6 +72,41 @@ pub static RULES: &[RuleDef] = &[
         id: E1,
         summary: "All three inputs are version 3 or 4 lockfiles of the same version, in Cargo's exact form, with no conflicting checksum, source, version change or id order.",
         adr: "0008#1",
+    },
+    RuleDef {
+        id: M1,
+        summary: "Both branches bumped a registry crate to different versions of one compatibility class: keep the higher one, with every dependent and the requirements and features proven.",
+        adr: "0008#4",
+    },
+    RuleDef {
+        id: M2,
+        summary: "Both branches changed a path package's dependencies: combine them when the merged manifest declares exactly the merged set and every version satisfies its requirement.",
+        adr: "0008#5",
+    },
+    RuleDef {
+        id: M3,
+        summary: "Drop a registry or git package that one branch removed and the other changed, or that the removals left unused, when nothing points at it.",
+        adr: "0008#6",
+    },
+    RuleDef {
+        id: B1,
+        summary: "A one-sided version change is taken when every path package that depends on the crate still admits the new version in the merged manifest.",
+        adr: "0008#4",
+    },
+    RuleDef {
+        id: C,
+        summary: "A one-sided change to a package's dependencies is taken when the merged manifests select the features the changing branch was resolved with.",
+        adr: "0008#4",
+    },
+    RuleDef {
+        id: D,
+        summary: "A one-sided version change is not a downgrade.",
+        adr: "0008#4",
+    },
+    RuleDef {
+        id: F,
+        summary: "The new entry of a moved crate keeps every dependency name the old one had.",
+        adr: "0008#4",
     },
     RuleDef {
         id: V2,
@@ -122,6 +173,18 @@ pub static CODES: &[CodeDef] = &[
         BY_HAND,
     ),
     def(
+        R5,
+        "A package was removed on one branch and changed on the other",
+        "{subjects} was removed on one branch and changed on the other, and something still depends on it or it was not in use before.",
+        BY_HAND,
+    ),
+    def(
+        R6,
+        "Both branches changed the dependencies of one package",
+        "Both branches changed the dependencies of {subjects}, and its Cargo.toml cannot prove they combine.",
+        BY_HAND,
+    ),
+    def(
         R7,
         "A package would be left unused",
         "{subjects} cannot be reached from any package of this project.",
@@ -159,8 +222,8 @@ pub static CODES: &[CodeDef] = &[
     ),
     def(
         R14,
-        "A change to a package's dependencies needs the manifests",
-        "{subjects} changed its version or its dependencies on a branch, for example a dependency added, dropped or moved to another version; lockmerge cannot yet check Cargo.toml to prove that safe.",
+        "A change needs the manifests, which cannot be used",
+        "{subjects} changed on a branch in a way that is only safe if Cargo.toml says so, and the manifests are not available or not in a form lockmerge reads.",
         BY_HAND,
     ),
     def(
@@ -179,6 +242,24 @@ pub static CODES: &[CodeDef] = &[
         UNWRITABLE,
         "The merged file cannot be written with certainty",
         "{subjects} cannot be written in Cargo's form without guessing.",
+        BY_HAND,
+    ),
+    def(
+        DOWNGRADE,
+        "A branch moved a crate to a lower version",
+        "{subjects} was moved to a lower version, which may lack a feature the other branch enables.",
+        BY_HAND,
+    ),
+    def(
+        FEATURES,
+        "The features a version was resolved with may not be the merged ones",
+        "{subjects} changed on a branch, and the other branch changes which features or dependencies apply, so the taken entry may miss a dependency.",
+        BY_HAND,
+    ),
+    def(
+        REQUIREMENT,
+        "A requirement in Cargo.toml does not admit the version",
+        "{subjects} was moved to a version that a merged Cargo.toml no longer admits.",
         BY_HAND,
     ),
 ];
