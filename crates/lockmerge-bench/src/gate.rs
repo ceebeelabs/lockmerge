@@ -39,14 +39,18 @@ pub struct Baseline {
     pub min_rate_resolved: usize,
     pub min_rate_of: usize,
     pub max_unverified: usize,
+    /// The regression ratchet (ADR 0017): git-clean-correct cases that
+    /// lockmerge refuses. It may only go down.
+    pub max_regressions: usize,
 }
 
-const KEYS: [&str; 5] = [
+const KEYS: [&str; 6] = [
     "min_cases",
     "min_reachable",
     "min_rate_resolved",
     "min_rate_of",
     "max_unverified",
+    "max_regressions",
 ];
 
 pub fn parse_baseline(text: &str) -> Result<Baseline, String> {
@@ -70,6 +74,7 @@ pub fn parse_baseline(text: &str) -> Result<Baseline, String> {
         min_rate_resolved: get("min_rate_resolved")?,
         min_rate_of: get("min_rate_of")?,
         max_unverified: get("max_unverified")?,
+        max_regressions: get("max_regressions")?,
     };
     if b.min_rate_of == 0 || b.min_rate_resolved > b.min_rate_of {
         return Err("baseline.toml: the rate must be `min_rate_resolved` of `min_rate_of`, with `min_rate_of` at least 1".into());
@@ -128,6 +133,12 @@ pub fn gate(
             m.unverified, b.max_unverified
         ));
     }
+    if m.regressions > b.max_regressions {
+        f.push(format!(
+            "{ecosystem}: {} regressions against plain git, the baseline maximum is {}",
+            m.regressions, b.max_regressions
+        ));
+    }
     f
 }
 
@@ -157,6 +168,7 @@ pub fn release_v1(cargo: Option<&Metrics>, agent: Option<&Metrics>) -> Vec<Strin
                     m.reachable_lower_bound() * 100.0
                 ));
             }
+            regression_check("cargo", m, &mut f);
         }
     }
     match agent {
@@ -168,16 +180,27 @@ pub fn release_v1(cargo: Option<&Metrics>, agent: Option<&Metrics>) -> Vec<Strin
                     m.s_r, m.c_r
                 ));
             }
+            regression_check("cargo-agent", m, &mut f);
         }
     }
     f
+}
+
+/// ADR 0017: regressions / git-clean-correct <= 5%, compared exactly.
+fn regression_check(corpus: &str, m: &Metrics, f: &mut Vec<String>) {
+    if m.regressions * 20 > m.git_clean_correct {
+        f.push(format!(
+            "release v1: {corpus} has {} regressions against plain git out of {} git-clean-correct cases, more than 5%",
+            m.regressions, m.git_clean_correct
+        ));
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const EMPTY_BASELINE: &str = "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 0\nmin_rate_of = 1\nmax_unverified = 0\n";
+    const EMPTY_BASELINE: &str = "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 0\nmin_rate_of = 1\nmax_unverified = 0\nmax_regressions = 0\n";
 
     fn metrics(s_r: usize, c_r: usize) -> Metrics {
         Metrics {
@@ -199,6 +222,8 @@ mod tests {
         let b = parse_baseline(EMPTY_BASELINE).unwrap();
         assert_eq!((b.min_cases, b.min_rate_of), (0, 1));
         assert!(parse_baseline("min_cases = 0\n").is_err());
+        // The regression ratchet is required: a baseline without it is refused.
+        assert!(parse_baseline(&EMPTY_BASELINE.replace("max_regressions = 0\n", "")).is_err());
         assert!(parse_baseline(&format!("{EMPTY_BASELINE}extra = 1\n")).is_err());
         assert!(
             parse_baseline(&EMPTY_BASELINE.replace("min_rate_of = 1", "min_rate_of = 0")).is_err()
@@ -217,7 +242,7 @@ mod tests {
     #[test]
     fn each_condition_fails_the_gate() {
         let b = parse_baseline(
-            "min_cases = 4\nmin_reachable = 4\nmin_rate_resolved = 1\nmin_rate_of = 2\nmax_unverified = 1\n",
+            "min_cases = 4\nmin_reachable = 4\nmin_rate_resolved = 1\nmin_rate_of = 2\nmax_unverified = 1\nmax_regressions = 1\n",
         )
         .unwrap();
         assert!(gate("cargo", &metrics(2, 4), &b, &[]).is_empty());
@@ -236,6 +261,14 @@ mod tests {
         let mut m = metrics(2, 4);
         m.unverified = 2;
         assert_eq!(gate("cargo", &m, &b, &[]).len(), 1);
+        // Regressions: one is allowed, two are not.
+        let mut m = metrics(2, 4);
+        m.regressions = 1;
+        assert!(gate("cargo", &m, &b, &[]).is_empty());
+        m.regressions = 2;
+        let f = gate("cargo", &m, &b, &[]);
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].contains("regressions"));
         // An integrity problem.
         let bad = [("cargo/r/x".to_string(), "hash".to_string())];
         assert_eq!(gate("cargo", &metrics(2, 4), &b, &bad).len(), 1);
@@ -244,22 +277,43 @@ mod tests {
     #[test]
     fn a_positive_baseline_fails_when_nothing_conflicts() {
         let b = parse_baseline(
-            "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 1\nmin_rate_of = 2\nmax_unverified = 0\n",
+            "min_cases = 0\nmin_reachable = 0\nmin_rate_resolved = 1\nmin_rate_of = 2\nmax_unverified = 0\nmax_regressions = 0\n",
         )
         .unwrap();
         assert_eq!(gate("cargo", &Metrics::default(), &b, &[]).len(), 1);
     }
 
     #[test]
-    fn release_v1_requires_sample_rate_and_lower_bound() {
+    fn release_v1_caps_regressions_at_five_percent_of_git_clean_correct() {
         let agent = metrics(9, 10);
-        // 60% of 40 with a lower bound below 50%.
-        let weak = metrics(24, 40);
-        let f = release_v1(Some(&weak), Some(&agent));
+        let with = |regressions, git_clean_correct| Metrics {
+            regressions,
+            git_clean_correct,
+            ..metrics(30, 40)
+        };
+        // 3 of 60 is 5%: accepted. 4 of 60 is above: refused.
+        assert!(release_v1(Some(&with(3, 60)), Some(&agent)).is_empty());
+        let f = release_v1(Some(&with(4, 60)), Some(&agent));
         assert_eq!(f.len(), 1, "{f:?}");
-        assert!(f[0].contains("Wilson"));
-        // 30 of 40 = 75%: lower bound about 60%.
-        assert!(release_v1(Some(&metrics(30, 40)), Some(&agent)).is_empty());
+        assert!(f[0].contains("regressions"));
+        // The observed state of main: 68 of 75.
+        assert!(!release_v1(Some(&with(68, 75)), Some(&agent)).is_empty());
+        // No git-clean-correct case and no regression: nothing to fail.
+        assert!(release_v1(Some(&with(0, 0)), Some(&agent)).is_empty());
+        // The agent-style corpus has the same limit: 3 of 60 passes, 4 of 60 fails.
+        let agent_with = |regressions, git_clean_correct| Metrics {
+            regressions,
+            git_clean_correct,
+            ..metrics(9, 10)
+        };
+        assert!(release_v1(Some(&with(0, 60)), Some(&agent_with(3, 60))).is_empty());
+        let f = release_v1(Some(&with(0, 60)), Some(&agent_with(4, 60)));
+        assert_eq!(f.len(), 1, "{f:?}");
+        assert!(f[0].contains("cargo-agent") && f[0].contains("regressions"));
+        assert!(release_v1(Some(&with(0, 60)), Some(&agent_with(0, 0))).is_empty());
+        // The failure names the corpus that caused it.
+        let f = release_v1(Some(&with(4, 60)), Some(&agent_with(4, 60)));
+        assert_eq!(f.len(), 2, "{f:?}");
         // Too few conflicts, even at 100%.
         assert!(!release_v1(Some(&metrics(10, 10)), Some(&agent)).is_empty());
         // Below 60% exactly: 23 of 40.
