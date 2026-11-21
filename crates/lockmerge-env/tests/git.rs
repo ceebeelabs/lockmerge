@@ -625,3 +625,32 @@ fn old_git_placeholders_left_literal_are_unavailable() {
     };
     assert!(git.identify(&args, &[]).is_err());
 }
+
+/// Both branches add a different line at the end of `[dependencies]`: git's
+/// own text merge of the manifest conflicts, and the driver's source hands the
+/// format the `--diff3` text of that conflict (ADR 0019).
+#[test]
+fn a_manifest_conflict_carries_the_diff3_text() {
+    let repo = Repo::new();
+    let base_text = "[dependencies]\nserde = \"1\"\n";
+    repo.write("Cargo.toml", base_text);
+    let base = repo.commit("base");
+    repo.git(&["branch", "side"]);
+    repo.write("Cargo.toml", &format!("{base_text}itoa = \"1\"\n"));
+    let ours = repo.commit("main change");
+    repo.git(&["checkout", "-q", "side"]);
+    repo.write("Cargo.toml", &format!("{base_text}leaf = \"1\"\n"));
+    let theirs = repo.commit("side change");
+    repo.git(&["checkout", "-q", "main"]);
+    let m = GitManifests::with_commits(
+        Git::new().in_dir(&repo.dir),
+        Identified { base, ours, theirs },
+    );
+    let expected = format!(
+        "{base_text}<<<<<<< ours\nitoa = \"1\"\n||||||| base\n=======\nleaf = \"1\"\n>>>>>>> theirs\n"
+    );
+    assert_eq!(
+        m.merged("Cargo.toml"),
+        ManifestResult::Conflicted(expected.into_bytes())
+    );
+}

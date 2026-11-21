@@ -354,9 +354,40 @@ impl GitManifests {
             .map_err(|e| why(format!("could not run git: {e}")))?;
         Ok(match out.status.code() {
             Some(0) => ManifestResult::Merged(out.stdout),
-            Some(1..=127) => ManifestResult::Conflict,
+            Some(1..=127) => self.conflict_text(dir.path()),
             _ => return Err(why("git merge-file failed")),
         })
+    }
+
+    /// The conflicting merge again with the base shown (`--diff3`), for the
+    /// format to read (ADR 0019). Plain `Conflict` if that run does not
+    /// conflict the same way.
+    fn conflict_text(&self, dir: &Path) -> ManifestResult {
+        let out = Command::new(&self.git.program)
+            .current_dir(dir)
+            .env("GIT_OPTIONAL_LOCKS", "0")
+            .stdin(Stdio::null())
+            .args([
+                "merge-file",
+                "-p",
+                "--diff3",
+                "-L",
+                "ours",
+                "-L",
+                "base",
+                "-L",
+                "theirs",
+                "ours",
+                "base",
+                "theirs",
+            ])
+            .output();
+        match out {
+            Ok(o) if matches!(o.status.code(), Some(1..=127)) => {
+                ManifestResult::Conflicted(o.stdout)
+            }
+            _ => ManifestResult::Conflict,
+        }
     }
 
     fn try_merged(&self, repo_path: &str) -> Result<ManifestResult, Why> {

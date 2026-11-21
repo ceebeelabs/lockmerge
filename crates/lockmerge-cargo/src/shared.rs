@@ -112,6 +112,15 @@ impl Shared {
             .map_err(|u| Fail::Manifests(u.0.clone()))
     }
 
+    /// The manifests whose conflicting text merge was read as two insertions
+    /// (ADR 0019), among those the rules have read so far.
+    pub fn kept_both(&self) -> &[String] {
+        match self.found.get() {
+            Some(Ok(found)) => &found.kept_both,
+            _ => &[],
+        }
+    }
+
     fn side(&self, role: Role, cx: &Context<'_>) -> Result<&Side, Fail> {
         let found = self.found(cx)?;
         self.sides[index(role)]

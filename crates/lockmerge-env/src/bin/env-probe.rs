@@ -28,7 +28,7 @@ fn main() {
             let m = git.manifests(&args, &githead).merged("Cargo.toml");
             let m = match m {
                 ManifestResult::Merged(b) => format!("merged {:?}", String::from_utf8_lossy(&b)),
-                ManifestResult::Conflict => "conflict".to_string(),
+                ManifestResult::Conflict | ManifestResult::Conflicted(_) => "conflict".to_string(),
                 ManifestResult::Unavailable(w) => format!("unavailable {:?}", w.0),
             };
             format!(

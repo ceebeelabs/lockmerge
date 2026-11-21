@@ -14,6 +14,8 @@
 //! - The manifest rules (M1 to M3, B1, C, D, F) read `Cargo.toml` through
 //!   [`lockmerge_core::Manifests`] ([`manifest`], [`find`]) and refuse with R14
 //!   when a manifest is unavailable or not read exactly.
+//! - [`union`] reads a manifest text conflict that is two insertions in one
+//!   dependency table as both (M4, ADR 0019); every other conflict is R14.
 //! - The native-links proof (V6, refused as R15) reads Cargo's registry index
 //!   cache through [`lockmerge_core::IndexCache`] ([`index`], pinned in
 //!   `docs/formats/cargo-registry-index.md`) when each side added different
@@ -35,6 +37,7 @@ mod moves;
 pub mod parse;
 mod rules;
 mod shared;
+mod union;
 pub mod write;
 
 pub use codes::{CARGO, CODES, RULES};

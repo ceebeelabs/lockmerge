@@ -347,11 +347,29 @@ Sources: [gitattributes, custom merge driver](https://git-scm.com/docs/gitattrib
 **The merged manifest.** For each manifest a rule needs, the driver reads the
 blobs of base, ours and theirs with `git cat-file` and runs `git merge-file -p`
 on the three. A clean result is the merged manifest. A conflict, or a manifest
-missing on any side, means no manifest rules for the whole lockfile (R14). This
-is exactly the text that git itself produces for those manifests when its merge
+missing on any side, means no manifest rules for the whole lockfile (R14),
+except for the one conflict shape of rule M4 below. A clean result is
+exactly the text that git itself produces for those manifests when its merge
 is clean, so it is not a dependency-level merge of our own. The index content is not
 read (stage 0 does not exist at driver time); the one use of the index is the comparison `git diff --cached --quiet HEAD` of "Proof of ours", and the working tree is never
 read: the result depends only on the three inputs and the git objects.
+
+**A conflict of two insertions (M4, ADR 0019).** On a conflict the driver runs
+`git merge-file -p --diff3` once more and reads the hunks. The manifest is
+treated as merged only if **every** hunk is an insertion by both sides at one
+base position (the base part is empty, neither side's part is), each side's
+lines are whole `key = value` entries that each parse on their own, all inside
+one `[dependencies]`, `[dev-dependencies]` or `[build-dependencies]` table (or
+its `[target.<cfg>.*]` form), no key is inserted by both sides or is already in
+the table, and the result parses with each key in the table its header names.
+The merged manifest is the unchanged text with each hunk replaced by ours'
+lines and then theirs'. A hunk that edits or removes a line, another table, a
+table-style `[dependencies.<name>]` section, a repeated key, a value over
+several lines or a hunk outside a table keeps the behavior above (R14). Git
+still leaves `Cargo.toml` conflicted: the merged lockfile is proven for the
+resolution that keeps both insertions, any other resolution is caught by CI's
+`cargo --locked`, and the driver says so on stderr ("Cargo.toml has a merge
+conflict; the merged Cargo.lock assumes both added dependencies are kept.").
 
 **Finding manifests.** Take the directory of the lockfile (`%P`). Read its
 `Cargo.toml` from each of the three trees. A virtual workspace has `[workspace]`
@@ -403,7 +421,7 @@ code task states each crate and its license in its PR (standing rule 6).
 ### 4.6 Fallback
 
 Whenever the commits are not identified (4.5), or a manifest cannot be read,
-is missing on a side, or does not merge cleanly as text, run the base rules of
+is missing on a side, or does not merge cleanly as text (other than the insertions of M4), run the base rules of
 4.2 only, for the whole file. M3 and the registry-dependents part of M1
 (conditions b to d, when no path package exists at all, since features can come
 from any member, see condition e) still apply, with D, F and V6, since they need
@@ -414,7 +432,8 @@ no manifest (V6's proof reads the registry index cache; without it, R15 refuses)
 | Rule | Accept test | Neighbor refuse test |
 | --- | --- | --- |
 | M1 | serde bumped 100 to 101 and 102, dependents all in the 102 side | derive enabled only on the lower side; extra dependent only on the 101 side; or member requirement `<1.0.102`; or 1.0.101 vs 2.0.0 |
-| M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable or conflicting |
+| M2 | member gets `anyhow` from ours and `tracing` from theirs; merged manifest lists both | merged manifest lists an extra dependency; or requirement not met by the resolved version, or a path target outside its `version` requirement; or manifest unavailable, or its text merge conflicts in any shape but the insertions of M4 |
+| M4 | both sides add a different dependency at the end of one member's `[dependencies]`; the text merge conflicts, both entries are kept, ours first | a hunk that edits a base line; another table; `[dependencies.<name>]`; a key both add or already there; a value over several lines; two hunks where one is an edit |
 | D | neither side changes a feature declaration, one-sided upgrade 0.8.4 to 0.8.5 (with another branch's feature change C refuses even an upgrade, as C(i) says) | one-sided downgrade to 0.8.3 |
 | F | rand_core bumped on both sides, same dependency names | 0.6.4 lacks `getrandom` that ours' 0.6.3 has (also with manifests unavailable; also one-sided; also via a changed dependent) |
 | V6 | cache present, both added crates links-free; or only one side adds a crate | shared `links` (`libsqlite3-sys` and `sqlite3-src`); checksum mismatch; cache absent; unknown cache format |

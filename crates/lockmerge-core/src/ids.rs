@@ -40,6 +40,9 @@ pub struct RuleDef {
     pub summary: &'static str,
     /// The ADR that decides the rule, for example `0008#4`.
     pub adr: &'static str,
+    /// A line for the user when the rule was used in a merge that completed;
+    /// the driver prints it on stderr.
+    pub notice: Option<&'static str>,
 }
 
 /// A refusal code and its user-facing text. Text for a refusal comes only

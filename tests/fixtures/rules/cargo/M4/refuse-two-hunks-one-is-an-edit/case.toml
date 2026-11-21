@@ -1,0 +1,4 @@
+source = "Hand-built reduction of rules/cargo/M2/accept-both-add-an-edge-to-the-same-member: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. The first hunk is two insertions in [dependencies], the second edits a line of [build-dependencies]. The text merge conflicts; the .diff3 file is that conflict as git merge-file --diff3 shows it."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R6"

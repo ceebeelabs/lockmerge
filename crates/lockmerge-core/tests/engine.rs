@@ -391,6 +391,7 @@ impl Pipeline for CoreRuleFormat {
         &[RuleDef {
             id: "core.B1",
             summary: "forged",
+            notice: None,
             adr: "0000",
         }]
     }

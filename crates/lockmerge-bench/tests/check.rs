@@ -403,6 +403,7 @@ struct Toy;
 const TOY_RULES: &[RuleDef] = &[RuleDef {
     id: "toy.E1",
     summary: "a toy rule",
+    notice: None,
     adr: "0000#0",
 }];
 const TOY_CODES: &[CodeDef] = &[CodeDef {

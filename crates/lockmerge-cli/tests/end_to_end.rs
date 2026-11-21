@@ -275,3 +275,63 @@ fn a_non_utf8_argument_exits_255_and_leaves_a_unchanged() {
     assert_eq!(out.status.code(), Some(255));
     assert_eq!(r.read("A"), b"ours\n");
 }
+
+/// The case `tests/fixtures/rules/cargo/M4/accept-both-insert-into-dependencies`
+/// as a repository: both branches add a dependency line at the end of the same
+/// table of `app/Cargo.toml`, so git's own merge of that manifest conflicts.
+fn m4_case(r: &Repo) {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/rules/cargo/M4/accept-both-insert-into-dependencies");
+    let load = |role: &str| {
+        for member in ["", "app/", "cli/", "lib/", "tool/"] {
+            let from = dir.join("sides").join(role).join(member).join("Cargo.toml");
+            fs::create_dir_all(r.work().join(member)).unwrap();
+            r.write(&format!("{member}Cargo.toml"), &fs::read(from).unwrap());
+        }
+        r.write("Cargo.lock", &fs::read(dir.join(role)).unwrap());
+    };
+    r.write(".gitattributes", b"Cargo.lock merge=lockmerge\n");
+    load("base");
+    r.commit("base");
+    r.git(&["checkout", "-q", "-b", "theirs"]).ok();
+    load("theirs");
+    r.commit("theirs");
+    r.git(&["checkout", "-q", "main"]).ok();
+    load("ours");
+    r.commit("ours");
+}
+
+#[test]
+fn a_manifest_conflict_of_two_insertions_merges_the_lockfile_and_says_so() {
+    let r = Repo::new("m4");
+    m4_case(&r);
+    r.lockmerge(&["install"]).ok();
+    let m = r.git(&["merge", "theirs"]);
+    // Git leaves the manifest conflicted; the lockfile is merged.
+    assert_eq!(m.code(), 1, "{}{}", m.out(), m.err());
+    let expected =
+        fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../tests/fixtures/rules/cargo/M4/accept-both-insert-into-dependencies/expected",
+        ))
+        .unwrap();
+    assert_eq!(r.read("Cargo.lock"), expected);
+    let manifest = String::from_utf8(r.read("app/Cargo.toml")).unwrap();
+    assert!(manifest.contains("<<<<<<<"), "{manifest}");
+    let all = format!("{}{}", m.out(), m.err());
+    assert!(
+        all.contains(
+            "Cargo.toml has a merge conflict; the merged Cargo.lock assumes both added dependencies are kept."
+        ),
+        "{all}"
+    );
+}
+
+#[test]
+fn a_clean_merge_that_needs_no_manifest_conflict_prints_no_notice() {
+    let r = Repo::new("m4-quiet");
+    r.branches("accept-external-package-unchanged");
+    r.lockmerge(&["install"]).ok();
+    let m = r.git(&["merge", "theirs"]);
+    m.ok();
+    assert!(!format!("{}{}", m.out(), m.err()).contains("merge conflict; the merged"));
+}

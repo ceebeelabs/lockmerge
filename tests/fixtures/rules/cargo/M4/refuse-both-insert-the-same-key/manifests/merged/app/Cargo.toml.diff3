@@ -1,0 +1,14 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lib = { path = "../lib", version = ">=1.0.0" }
+serde = "1"
+<<<<<<< ours
+itoa = "1"
+||||||| base
+=======
+itoa = "1.0"
+>>>>>>> theirs
