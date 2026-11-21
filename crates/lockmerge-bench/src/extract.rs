@@ -6,7 +6,7 @@
 
 use crate::case::license_allowed;
 use crate::classify::Kind;
-use crate::oracle::{CargoOracle, Oracle, path_package_names};
+use crate::oracle::{CargoOracle, Oracle, path_package_names, registry_package_names};
 use crate::scan::{
     Candidate, Considered, Outcome, PlainGit, Selection, Source, ensure_clone, git_out, scan,
 };
@@ -199,6 +199,68 @@ fn side_manifests(
         .collect())
 }
 
+/// The path of a crate's entry under an index directory's `.cache/`
+/// (docs/formats/cargo-registry-index.md section 2), or `None` for a name the
+/// document does not pin: only ASCII lowercase letters, digits, `-` and `_`.
+fn cache_path(name: &str) -> Option<String> {
+    if name.is_empty()
+        || !name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    {
+        return None;
+    }
+    Some(match name.len() {
+        1 => format!("1/{name}"),
+        2 => format!("2/{name}"),
+        3 => format!("3/{}/{name}", &name[..1]),
+        _ => format!("{}/{}/{name}", &name[..2], &name[2..4]),
+    })
+}
+
+/// The registry index cache files the native-links proof (R15) needs for the
+/// registry packages of base, ours and theirs, copied byte for byte from
+/// `<cargo_home>/registry/index/<index directory>/.cache/<path>`. Returns
+/// `index/<index directory>/.cache/<path>` and the bytes, and how many
+/// package names had no file in any index directory (R15 refuses those). A
+/// name the document does not pin is not saved and counts as missing.
+fn index_files(cargo_home: &Path, locks: &[&[u8]]) -> Result<(Vec<NamedFile>, usize), String> {
+    let mut names = BTreeSet::new();
+    for lock in locks {
+        names.extend(registry_package_names(lock)?);
+    }
+    let root = cargo_home.join("registry/index");
+    let mut dirs: Vec<String> = match fs::read_dir(&root) {
+        Ok(rd) => rd
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect(),
+        Err(_) => Vec::new(),
+    };
+    dirs.sort();
+    let mut files = Vec::new();
+    let mut missing = 0;
+    for name in names {
+        let Some(path) = cache_path(&name) else {
+            missing += 1;
+            continue;
+        };
+        let before = files.len();
+        for d in &dirs {
+            let file = root.join(d).join(".cache").join(&path);
+            if file.is_file() {
+                let bytes = fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+                files.push((format!("index/{d}/.cache/{path}"), bytes));
+            }
+        }
+        if files.len() == before {
+            missing += 1;
+        }
+    }
+    Ok((files, missing))
+}
+
 fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
     if let Some(p) = path.parent() {
         fs::create_dir_all(p).map_err(|e| format!("{}: {e}", p.display()))?;
@@ -246,7 +308,8 @@ fn write_case(
     license: &str,
     dir: &Path,
     date: &str,
-) -> Result<(), String> {
+    cargo_home: Option<&Path>,
+) -> Result<usize, String> {
     let mut files: Vec<(String, Vec<u8>)> = vec![
         ("base".into(), c.base_bytes.clone()),
         ("ours".into(), c.ours.clone()),
@@ -262,6 +325,12 @@ fn write_case(
             files.push((format!("manifests/{side}/{rel}"), bytes));
         }
     }
+    let mut missing = 0;
+    if let Some(home) = cargo_home {
+        let (index, m) = index_files(home, &[&c.base_bytes, &c.ours, &c.theirs])?;
+        files.extend(index);
+        missing = m;
+    }
     let mut shas = Vec::new();
     for (rel, bytes) in &files {
         write(&dir.join(rel), bytes)?;
@@ -270,7 +339,8 @@ fn write_case(
     write(
         &dir.join("case.toml"),
         case_toml(src, c, license, &shas, date).as_bytes(),
-    )
+    )?;
+    Ok(missing)
 }
 
 /// Merges this run's entries into `<eco>/INDEX.toml`, keeping the entries of
@@ -381,6 +451,9 @@ pub struct ExtractOpts {
     pub out: PathBuf,
     pub cache: PathBuf,
     pub date: String,
+    /// The `CARGO_HOME` whose registry index cache is copied into each case's
+    /// `index/`. `None` saves no index entries.
+    pub cargo_home: Option<PathBuf>,
 }
 
 /// Extracts one source. Returns a one-line summary.
@@ -407,6 +480,7 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
 
     let repo_dir = opts.out.join(&src.ecosystem).join(&src.name);
     let mut taken = 0;
+    let mut missing = 0;
     let mut selected: BTreeSet<String> = BTreeSet::new();
     let mut per_merge: std::collections::BTreeMap<&str, usize> = Default::default();
     for c in &considered {
@@ -424,13 +498,14 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
         selected.insert(name.clone());
         // Rewrite from scratch, so no file of an earlier run survives.
         let _ = fs::remove_dir_all(repo_dir.join(&name));
-        write_case(
+        missing += write_case(
             &repo,
             src,
             cand,
             &license_expr,
             &repo_dir.join(name),
             &opts.date,
+            opts.cargo_home.as_deref(),
         )?;
         taken += 1;
     }
@@ -453,8 +528,13 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
         src,
         &considered,
     )?;
+    let note = if opts.cargo_home.is_some() && missing > 0 {
+        format!("; {missing} registry package entries not in the index cache (R15 refuses them)")
+    } else {
+        String::new()
+    };
     Ok(format!(
-        "{}: {} considered, {taken} extracted ({license_expr})",
+        "{}: {} considered, {taken} extracted ({license_expr}){note}",
         src.name,
         considered.len()
     ))
@@ -471,6 +551,25 @@ mod tests {
         assert_eq!(detect(mit), BTreeSet::from(["MIT"]));
         assert_eq!(detect(apache), BTreeSet::from(["Apache-2.0"]));
         assert!(detect("GNU GENERAL PUBLIC LICENSE Version 3").is_empty());
+    }
+
+    #[test]
+    fn cache_paths_follow_the_name_length_and_refuse_unpinned_names() {
+        assert_eq!(cache_path("a").as_deref(), Some("1/a"));
+        assert_eq!(cache_path("az").as_deref(), Some("2/az"));
+        assert_eq!(cache_path("aes").as_deref(), Some("3/a/aes"));
+        assert_eq!(cache_path("libz-sys").as_deref(), Some("li/bz/libz-sys"));
+        assert_eq!(cache_path("a_b-1").as_deref(), Some("a_/b-/a_b-1"));
+        assert_eq!(cache_path("Serde"), None);
+        assert_eq!(cache_path("a.b"), None);
+        assert_eq!(cache_path(""), None);
+    }
+
+    #[test]
+    fn only_registry_sources_need_index_entries() {
+        let lock = "version = 3\n\n[[package]]\nname = \"a\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"x\"\n\n[[package]]\nname = \"b\"\nversion = \"1.0.0\"\nsource = \"git+https://example.com/b#abc\"\n\n[[package]]\nname = \"c\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"d\"\nversion = \"1.0.0\"\nsource = \"sparse+https://index.crates.io/\"\nchecksum = \"y\"\n";
+        let names = registry_package_names(lock.as_bytes()).unwrap();
+        assert_eq!(names, BTreeSet::from(["a".to_string(), "d".to_string()]));
     }
 
     #[test]

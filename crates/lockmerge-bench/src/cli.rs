@@ -3,7 +3,7 @@
 //! ```text
 //! lockmerge-bench check   [--fixtures DIR] [--release v1] [--driver-bin PATH] [--timeout-secs N]
 //! lockmerge-bench survey  --sources FILE [--cache DIR]
-//! lockmerge-bench extract --sources FILE --out DIR [--cache DIR] [--date YYYY-MM-DD]
+//! lockmerge-bench extract --sources FILE --out DIR [--cache DIR] [--cargo-home DIR] [--date YYYY-MM-DD]
 //! ```
 //!
 //! Exit codes: 0 success, 1 the gate failed, 2 a usage or I/O error.
@@ -22,7 +22,7 @@ use std::time::Duration;
 const USAGE: &str = "usage:
   lockmerge-bench check   [--fixtures DIR] [--release v1] [--driver-bin PATH] [--timeout-secs N]
   lockmerge-bench survey  --sources FILE [--cache DIR]
-  lockmerge-bench extract --sources FILE --out DIR [--cache DIR] [--date YYYY-MM-DD]";
+  lockmerge-bench extract --sources FILE --out DIR [--cache DIR] [--cargo-home DIR] [--date YYYY-MM-DD]";
 
 struct Args {
     rest: Vec<String>,
@@ -110,11 +110,20 @@ fn run(mut argv: Vec<String>) -> Result<i32, String> {
                 .take("--cache")?
                 .unwrap_or_else(|| "bench-cache".into());
             let date = args.take("--date")?.unwrap_or_else(today);
+            // The owner's registry cache: --cargo-home, else CARGO_HOME, else
+            // ~/.cargo. Without any of them no index entries are saved.
+            let cargo_home = match args.take("--cargo-home")? {
+                Some(d) => Some(PathBuf::from(d)),
+                None => std::env::var_os("CARGO_HOME")
+                    .map(PathBuf::from)
+                    .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cargo"))),
+            };
             args.finish()?;
             let opts = ExtractOpts {
                 out: PathBuf::from(out),
                 cache: PathBuf::from(cache),
                 date,
+                cargo_home,
             };
             for src in load_sources(&sources)? {
                 println!("{}", extract(&src, &opts)?);
