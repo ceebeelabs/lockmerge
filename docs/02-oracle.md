@@ -516,17 +516,29 @@ ignore them. The real name is `lockfile_path` in `case.toml`.
 
 `index/` holds the registry index cache that R15 reads
 (docs/formats/cargo-registry-index.md). For every registry package
-(`registry+` or `sparse+` source) in base, ours or theirs, `extract` copies the
-cache file of its crate, byte for byte, from the owner's `CARGO_HOME`
-(`--cargo-home DIR`, else the `CARGO_HOME` variable, else `~/.cargo`) at
-extraction time: `<CARGO_HOME>/registry/index/<dir>/.cache/<path>` is saved as
-`index/<dir>/.cache/<path>`, for every index directory that has it. Each file
-is listed in `[sha256]` and counts in the size budget. A crate with no file, or
-a name the format document does not pin, is not saved and the summary counts
-it: R15 refuses such a case. Cargo must have fetched the packages first (a
-`cargo fetch` in the repository at each side). The agent-style recipe
-(section 6.3) saves the same files in step 5, from the `CARGO_HOME` cargo ran
-with. Tests use a fake `CARGO_HOME`; nothing downloads.
+(`registry+` or `sparse+` source) in base, ours or theirs, `extract` reads the
+cache file of its crate from the owner's `CARGO_HOME` (`--cargo-home DIR`, else
+the `CARGO_HOME` variable, else `~/.cargo`) at extraction time:
+`<CARGO_HOME>/registry/index/<dir>/.cache/<path>` is saved as
+`index/<dir>/.cache/<path>`, for every index directory that has it. The saved
+file is a reduction (a whole file is about 53 KB on average, tokio 872 KB,
+against the budget of section 6.4): the original header bytes unchanged
+(through the NUL that ends the index version string), then only the records
+whose version text equals a version of that crate in base, ours or theirs,
+each copied byte for byte in its original order. A record is never added or
+edited, and the layout stays exactly the one the format document pins, so the
+file parses through the same code as a real one. A file that does not have the
+pinned layout, or that has no record of any lockfile version, is not saved.
+Each saved file is listed in `[sha256]` (the hash of the saved bytes) and
+counts in the size budget, and `case.toml` has one `[[index_reduction]]` table
+per file with `file`, `original_sha256` (the hash of the whole cache file it
+was cut from) and `versions` (the versions kept). A crate with no saved file,
+or a name the format document does not pin, is counted in the summary: R15
+refuses such a case, as it refuses a version whose record was not in the
+original. Cargo must have fetched the packages first (a `cargo fetch` in the
+repository at each side). The agent-style recipe (section 6.3) saves the same
+reduced files in step 5, from the `CARGO_HOME` cargo ran with. Tests use a fake
+`CARGO_HOME`; nothing downloads.
 
 `manifests/` is always saved, because the replay (section 3.3) commits them
 into the temporary repository for the driver to read. It holds, for each of
@@ -564,8 +576,8 @@ orchestrator repository.
    is what a person would commit after merging both branches.
 5. Save the four lockfiles as bytes, the manifests of each side, the registry
    index cache files of every registry package in base, ours and theirs
-   (`index/`, section 6.2, copied byte for byte from the `CARGO_HOME` cargo
-   ran with), and a
+   (`index/`, section 6.2, reduced to the records of the lockfile versions,
+   from the `CARGO_HOME` cargo ran with), and a
    `case.toml` recording the commands, the exact `cargo --version`, the crate
    versions, and the date. Cargo is run once at extraction; the files are then
    committed unchanged.

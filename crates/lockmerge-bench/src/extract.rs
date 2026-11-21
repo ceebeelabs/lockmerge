@@ -6,11 +6,12 @@
 
 use crate::case::license_allowed;
 use crate::classify::Kind;
-use crate::oracle::{CargoOracle, Oracle, path_package_names, registry_package_names};
+use crate::oracle::{CargoOracle, Oracle, path_package_names, registry_packages};
 use crate::scan::{
     Candidate, Considered, Outcome, PlainGit, Selection, Source, ensure_clone, git_out, scan,
 };
 use crate::util::sha256_hex;
+use lockmerge_cargo::index::parse_entry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -218,16 +219,72 @@ fn cache_path(name: &str) -> Option<String> {
     })
 }
 
+/// How a saved index file was reduced from the original cache file: the
+/// SHA-256 of the original bytes and the versions whose records were kept.
+struct Reduction {
+    /// `<index directory>/.cache/<path>`, the key of the file in `[sha256]`
+    /// (without the leading `index/`).
+    rel: String,
+    original_sha256: String,
+    versions: Vec<String>,
+}
+
+/// Reduces one cache file to its header and the records of `wanted` versions
+/// (docs/formats/cargo-registry-index.md section 3). The header bytes, up to
+/// and including the NUL that ends the index version string, are kept as they
+/// are, and so is each kept record, byte for byte, in its original order. A
+/// record is never added or edited. Returns the new bytes and the versions
+/// kept, or `None` if the file does not have exactly the pinned layout or no
+/// record is kept: such a file is not saved, and R15 refuses its packages.
+fn trim_cache_file(bytes: &[u8], wanted: &BTreeSet<String>) -> Option<(Vec<u8>, Vec<String>)> {
+    const MAGIC: &[u8] = b"\x03\x02\0\0\0";
+    // The reader R15 uses must accept the original, so a file it would refuse
+    // is not reduced into one it might accept.
+    parse_entry(bytes).ok()?;
+    let rest = bytes.strip_prefix(MAGIC)?;
+    let nul = rest.iter().position(|b| *b == 0)?;
+    let header_len = MAGIC.len() + nul + 1;
+    let mut out = bytes[..header_len].to_vec();
+    let mut kept: Vec<String> = Vec::new();
+    let mut pos = header_len;
+    while pos < bytes.len() {
+        let v_end = pos + bytes[pos..].iter().position(|b| *b == 0)?;
+        let j_end = v_end + 1 + bytes[v_end + 1..].iter().position(|b| *b == 0)?;
+        // The version text and the JSON must be UTF-8 (section 3).
+        let vers = std::str::from_utf8(&bytes[pos..v_end]).ok()?;
+        std::str::from_utf8(&bytes[v_end + 1..j_end]).ok()?;
+        if wanted.contains(vers) {
+            out.extend_from_slice(&bytes[pos..=j_end]);
+            if !kept.iter().any(|k| k == vers) {
+                kept.push(vers.to_string());
+            }
+        }
+        pos = j_end + 1;
+    }
+    if kept.is_empty() {
+        return None;
+    }
+    Some((out, kept))
+}
+
 /// The registry index cache files the native-links proof (R15) needs for the
-/// registry packages of base, ours and theirs, copied byte for byte from
-/// `<cargo_home>/registry/index/<index directory>/.cache/<path>`. Returns
-/// `index/<index directory>/.cache/<path>` and the bytes, and how many
-/// package names had no file in any index directory (R15 refuses those). A
-/// name the document does not pin is not saved and counts as missing.
-fn index_files(cargo_home: &Path, locks: &[&[u8]]) -> Result<(Vec<NamedFile>, usize), String> {
-    let mut names = BTreeSet::new();
+/// registry packages of base, ours and theirs, read from
+/// `<cargo_home>/registry/index/<index directory>/.cache/<path>` and reduced by
+/// `trim_cache_file` to the exact versions of those lockfiles. Returns
+/// `index/<index directory>/.cache/<path>` and the reduced bytes, one
+/// `Reduction` per file, and how many package names had no saved file in any
+/// index directory (R15 refuses those). A name the document does not pin, a
+/// file that does not have the pinned layout, and a file with no record of a
+/// lockfile version are not saved and count as missing.
+fn index_files(
+    cargo_home: &Path,
+    locks: &[&[u8]],
+) -> Result<(Vec<NamedFile>, Vec<Reduction>, usize), String> {
+    let mut versions: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for lock in locks {
-        names.extend(registry_package_names(lock)?);
+        for (name, version) in registry_packages(lock)? {
+            versions.entry(name).or_default().insert(version);
+        }
     }
     let root = cargo_home.join("registry/index");
     let mut dirs: Vec<String> = match fs::read_dir(&root) {
@@ -240,8 +297,9 @@ fn index_files(cargo_home: &Path, locks: &[&[u8]]) -> Result<(Vec<NamedFile>, us
     };
     dirs.sort();
     let mut files = Vec::new();
+    let mut reductions = Vec::new();
     let mut missing = 0;
-    for name in names {
+    for (name, wanted) in versions {
         let Some(path) = cache_path(&name) else {
             missing += 1;
             continue;
@@ -251,14 +309,22 @@ fn index_files(cargo_home: &Path, locks: &[&[u8]]) -> Result<(Vec<NamedFile>, us
             let file = root.join(d).join(".cache").join(&path);
             if file.is_file() {
                 let bytes = fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
-                files.push((format!("index/{d}/.cache/{path}"), bytes));
+                if let Some((trimmed, kept)) = trim_cache_file(&bytes, &wanted) {
+                    let rel = format!("{d}/.cache/{path}");
+                    reductions.push(Reduction {
+                        rel: rel.clone(),
+                        original_sha256: sha256_hex(&bytes),
+                        versions: kept,
+                    });
+                    files.push((format!("index/{rel}"), trimmed));
+                }
             }
         }
         if files.len() == before {
             missing += 1;
         }
     }
-    Ok((files, missing))
+    Ok((files, reductions, missing))
 }
 
 fn write(path: &Path, bytes: &[u8]) -> Result<(), String> {
@@ -273,6 +339,7 @@ fn case_toml(
     c: &Candidate,
     license: &str,
     shas: &[(String, String)],
+    reductions: &[Reduction],
     date: &str,
 ) -> String {
     let mut s = String::new();
@@ -296,6 +363,17 @@ fn case_toml(
     s.push_str("\n[sha256]\n");
     for (rel, sha) in shas {
         s.push_str(&format!("{} = {}\n", q(rel), q(sha)));
+    }
+    // Each saved index file is a reduction of the owner's cache file: the
+    // SHA-256 of the original and the versions kept (section 6.2).
+    for r in reductions {
+        let versions: Vec<String> = r.versions.iter().map(|v| q(v)).collect();
+        s.push_str(&format!(
+            "\n[[index_reduction]]\nfile = {}\noriginal_sha256 = {}\nversions = [{}]\n",
+            q(&format!("index/{}", r.rel)),
+            q(&r.original_sha256),
+            versions.join(", ")
+        ));
     }
     s
 }
@@ -326,9 +404,11 @@ fn write_case(
         }
     }
     let mut missing = 0;
+    let mut reductions = Vec::new();
     if let Some(home) = cargo_home {
-        let (index, m) = index_files(home, &[&c.base_bytes, &c.ours, &c.theirs])?;
+        let (index, red, m) = index_files(home, &[&c.base_bytes, &c.ours, &c.theirs])?;
         files.extend(index);
+        reductions = red;
         missing = m;
     }
     let mut shas = Vec::new();
@@ -338,7 +418,7 @@ fn write_case(
     }
     write(
         &dir.join("case.toml"),
-        case_toml(src, c, license, &shas, date).as_bytes(),
+        case_toml(src, c, license, &shas, &reductions, date).as_bytes(),
     )?;
     Ok(missing)
 }
@@ -568,8 +648,43 @@ mod tests {
     #[test]
     fn only_registry_sources_need_index_entries() {
         let lock = "version = 3\n\n[[package]]\nname = \"a\"\nversion = \"1.0.0\"\nsource = \"registry+https://github.com/rust-lang/crates.io-index\"\nchecksum = \"x\"\n\n[[package]]\nname = \"b\"\nversion = \"1.0.0\"\nsource = \"git+https://example.com/b#abc\"\n\n[[package]]\nname = \"c\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"d\"\nversion = \"1.0.0\"\nsource = \"sparse+https://index.crates.io/\"\nchecksum = \"y\"\n";
-        let names = registry_package_names(lock.as_bytes()).unwrap();
-        assert_eq!(names, BTreeSet::from(["a".to_string(), "d".to_string()]));
+        let pkgs = registry_packages(lock.as_bytes()).unwrap();
+        let want = [("a", "1.0.0"), ("d", "1.0.0")].map(|(n, v)| (n.to_string(), v.to_string()));
+        assert_eq!(pkgs, BTreeSet::from(want));
+    }
+
+    #[test]
+    fn trimming_keeps_header_and_wanted_records_in_order_and_refuses_the_rest() {
+        let file = b"\x03\x02\0\0\0etag: x\0" as &[u8];
+        let recs: [(&str, &str); 4] = [
+            ("1.0.0", "{a}"),
+            ("2.0.0", "{b}"),
+            ("1.0.0", "{c}"),
+            ("3.0.0", "{d}"),
+        ];
+        let mut full = file.to_vec();
+        for (v, j) in recs {
+            full.extend_from_slice(format!("{v}\0{j}\0").as_bytes());
+        }
+        let want = |vs: &[&str]| vs.iter().map(|v| v.to_string()).collect::<BTreeSet<_>>();
+        // Both records of a version are kept, in their original order.
+        let (out, kept) = trim_cache_file(&full, &want(&["3.0.0", "1.0.0"])).unwrap();
+        assert_eq!(
+            out,
+            [file, b"1.0.0\0{a}\0", b"1.0.0\0{c}\0", b"3.0.0\0{d}\0"].concat()
+        );
+        assert_eq!(kept, ["1.0.0", "3.0.0"]);
+        // No record of a wanted version: nothing is saved.
+        assert!(trim_cache_file(&full, &want(&["9.9.9"])).is_none());
+        // A header other than the pinned one, a missing last NUL and a
+        // record without JSON are not reduced.
+        let mut other = full.clone();
+        other[0] = 2;
+        assert!(trim_cache_file(&other, &want(&["1.0.0"])).is_none());
+        assert!(trim_cache_file(&full[..full.len() - 1], &want(&["1.0.0"])).is_none());
+        let mut odd = full.clone();
+        odd.extend_from_slice(b"4.0.0\0");
+        assert!(trim_cache_file(&odd, &want(&["1.0.0"])).is_none());
     }
 
     #[test]
