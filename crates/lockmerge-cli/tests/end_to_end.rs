@@ -252,3 +252,26 @@ fn an_unsupported_file_name_conflicts_with_markers_through_git() {
             .contains("<<<<<<<")
     );
 }
+
+/// A path with non-UTF-8 bytes is a valid git path on Unix. The binary must
+/// exit 255 (not 101) and leave %A unchanged.
+#[cfg(unix)]
+#[test]
+fn a_non_utf8_argument_exits_255_and_leaves_a_unchanged() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+    let r = Repo::new("nonutf8");
+    for (n, c) in [("O", "base\n"), ("A", "ours\n"), ("B", "theirs\n")] {
+        r.write(n, c.as_bytes());
+    }
+    let bad = OsString::from_vec(b"caf\xe9/Cargo.lock".to_vec());
+    let out = r
+        .command(BIN)
+        .arg("merge-driver")
+        .args(["O", "A", "B", "7"])
+        .arg(bad)
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(255));
+    assert_eq!(r.read("A"), b"ours\n");
+}
