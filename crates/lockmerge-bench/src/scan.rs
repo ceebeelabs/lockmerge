@@ -34,6 +34,10 @@ pub struct Source {
     /// The SPDX expression the owner states; checked against the license
     /// files at the pinned commit.
     pub license: Option<String>,
+    /// Opt-in (`squash_prs = true`): also recover squash-merged pull requests
+    /// from `refs/pull/<n>/head` as cases (docs/02-oracle.md section 3.1).
+    /// Default false.
+    pub squash_prs: bool,
 }
 
 fn slug(url: &str) -> String {
@@ -91,6 +95,15 @@ pub fn parse_sources(text: &str) -> Result<Vec<Source>, String> {
                 )
             })?,
         };
+        let squash_prs = match t.get("squash_prs") {
+            None => false,
+            Some(i) => i.as_bool().ok_or_else(|| {
+                format!(
+                    "sources.toml: source {} `squash_prs` must be true or false",
+                    n + 1
+                )
+            })?,
+        };
         out.push(Source {
             name: s("name").unwrap_or_else(|| slug(&url)),
             ecosystem: s("ecosystem").ok_or_else(|| ctx("ecosystem"))?,
@@ -100,6 +113,7 @@ pub fn parse_sources(text: &str) -> Result<Vec<Source>, String> {
             max_file_bytes: int("max_file_bytes")?,
             git_clean_percent,
             license: s("license"),
+            squash_prs,
             url,
         });
     }
@@ -158,6 +172,19 @@ pub fn ensure_clone(source: &Source, dir: &Path) -> Result<(), String> {
                 "--filter=blob:none",
                 &source.url,
                 &target,
+            ],
+        )?;
+    }
+    if source.squash_prs {
+        // The pull request heads are not part of a plain clone. The refspec
+        // names them under the same refs/pull/ names. Owner side, network.
+        git_out(
+            dir,
+            &[
+                "fetch",
+                "--quiet",
+                &source.url,
+                "+refs/pull/*/head:refs/pull/*/head",
             ],
         )?;
     }
@@ -227,6 +254,10 @@ pub struct Candidate {
     pub plain_git: PlainGit,
     /// Ids that changed between base and either side, to diversify cases.
     pub change_set: BTreeSet<String>,
+    /// The pull request number when this is a squash-merged pull request:
+    /// `merge` is then the squash commit, `parents` are its parent and the
+    /// pull request head.
+    pub pull_request: Option<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -342,6 +373,7 @@ fn candidate(
         foreign,
         plain_git: plain,
         change_set,
+        pull_request: None,
     }))
 }
 
@@ -362,35 +394,207 @@ pub fn scan(
     )?);
     let mut out = Vec::new();
     let mut taken = 0usize;
+    let full = |taken: usize| max_taken.is_some_and(|m| taken >= m);
     'merges: for line in listing.lines() {
         let mut parts = line.split_whitespace();
         let Some(merge) = parts.next() else { continue };
         let parents: Vec<&str> = parts.collect();
         for path in &src.lockfiles {
-            if max_taken.is_some_and(|m| taken >= m) {
+            if full(taken) {
                 break 'merges;
             }
-            match candidate(repo, src, oracle, merge, &parents, path)? {
-                Err(why) => out.push(skip(merge, path, why)),
-                Ok(c) => match select(&c) {
-                    Selection::Skip(why) => out.push(Considered {
-                        plain_git: Some(c.plain_git),
-                        ..skip(merge, path, why)
-                    }),
-                    Selection::Take => {
-                        taken += 1;
-                        out.push(Considered {
-                            merge: merge.to_string(),
-                            path: path.to_string(),
-                            plain_git: Some(c.plain_git),
-                            outcome: Outcome::Case(Box::new(c)),
-                        });
+            let result = candidate(repo, src, oracle, merge, &parents, path)?;
+            offer(&mut out, &mut taken, select, merge, path, result);
+        }
+    }
+    if src.squash_prs && !full(taken) {
+        scan_squash(repo, src, oracle, max_taken, &mut taken, select, &mut out)?;
+    }
+    Ok(out)
+}
+
+/// Records the result for one merge and lockfile path.
+fn offer(
+    out: &mut Vec<Considered>,
+    taken: &mut usize,
+    select: &mut dyn FnMut(&Candidate) -> Selection,
+    merge: &str,
+    path: &str,
+    result: Result<Candidate, &'static str>,
+) {
+    match result {
+        Err(why) => out.push(skip(merge, path, why)),
+        Ok(c) => match select(&c) {
+            Selection::Skip(why) => out.push(Considered {
+                plain_git: Some(c.plain_git),
+                ..skip(merge, path, why)
+            }),
+            Selection::Take => {
+                *taken += 1;
+                out.push(Considered {
+                    merge: merge.to_string(),
+                    path: path.to_string(),
+                    plain_git: Some(c.plain_git),
+                    outcome: Outcome::Case(Box::new(c)),
+                });
+            }
+        },
+    }
+}
+
+/// The paths that differ between two commits, without the lockfiles of the
+/// source (they have cases of their own).
+fn changed(repo: &Path, src: &Source, a: &str, b: &str) -> Result<BTreeSet<String>, String> {
+    let raw = git_out(repo, &["diff", "--name-only", "--no-renames", "-z", a, b])?;
+    Ok(raw
+        .split(|b| *b == 0)
+        .filter(|p| !p.is_empty())
+        .map(|p| String::from_utf8_lossy(p).into_owned())
+        .filter(|p| !src.lockfiles.contains(p))
+        .collect())
+}
+
+/// Proves that the squash commit `squash` is the pull request applied to
+/// `ours` (its parent), apart from the lockfiles. With `pr` the paths the pull
+/// request changed from `base`, and `main` those the default branch changed
+/// from `base`: the pull request must not touch a path the default branch also
+/// changed (the squash result of such a path cannot be checked without
+/// guessing), the squash must change exactly the pull request's paths, and
+/// each of them must equal the pull request head.
+fn squash_proof(
+    repo: &Path,
+    src: &Source,
+    c: &Candidate,
+) -> Result<Result<(), &'static str>, String> {
+    let (base, ours, head, squash) = (&c.base, &c.parents[0], &c.parents[1], &c.merge);
+    let pr = changed(repo, src, base, head)?;
+    let main = changed(repo, src, base, ours)?;
+    if !pr.is_disjoint(&main) {
+        return Ok(Err("squash-overlap-unproven"));
+    }
+    let landed = changed(repo, src, ours, squash)?;
+    let differs = changed(repo, src, squash, head)?;
+    if landed != pr || !differs.is_disjoint(&pr) {
+        return Ok(Err("squash-not-the-pull-request"));
+    }
+    Ok(Ok(()))
+}
+
+/// `Some(n)` for a subject that ends with GitHub's `(#n)`.
+fn pull_number(subject: &str) -> Option<u64> {
+    let inner = subject.trim_end().strip_suffix(')')?;
+    let digits = &inner[inner.rfind("(#")? + 2..];
+    let n: u64 = digits.parse().ok()?;
+    (n.to_string() == digits).then_some(n)
+}
+
+/// Squash-merged pull requests (docs/02-oracle.md section 3.1). The squash
+/// commit S of pull request n is a one-parent commit on the first-parent
+/// history of the pinned revision whose subject ends with `(#n)`, for a pull
+/// request whose head is in `refs/pull/<n>/head`. It must be the only such
+/// commit, and `squash_proof` must show that its tree is the pull request
+/// applied. Ours is S's parent, theirs the pull request head.
+fn scan_squash(
+    repo: &Path,
+    src: &Source,
+    oracle: &dyn Oracle,
+    max_taken: Option<usize>,
+    taken: &mut usize,
+    select: &mut dyn FnMut(&Candidate) -> Selection,
+    out: &mut Vec<Considered>,
+) -> Result<(), String> {
+    let mut heads: std::collections::BTreeMap<u64, String> = Default::default();
+    let refs = text(git_out(
+        repo,
+        &[
+            "for-each-ref",
+            "--format=%(objecttype) %(objectname) %(refname)",
+            "refs/pull/",
+        ],
+    )?);
+    for line in refs.lines() {
+        let mut p = line.split(' ');
+        let (Some("commit"), Some(sha), Some(name)) = (p.next(), p.next(), p.next()) else {
+            continue;
+        };
+        let n = name
+            .strip_prefix("refs/pull/")
+            .and_then(|r| r.strip_suffix("/head"))
+            .filter(|d| d.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|d| d.parse::<u64>().ok());
+        if let Some(n) = n {
+            heads.insert(n, sha.to_string());
+        }
+    }
+    let log = text(git_out(
+        repo,
+        &[
+            "log",
+            "--first-parent",
+            "--format=%H%x09%P%x09%s",
+            &src.revision,
+        ],
+    )?);
+    // Newest first; the commits that name each pull request.
+    let mut order: Vec<u64> = Vec::new();
+    let mut named: std::collections::BTreeMap<u64, Vec<(String, String)>> = Default::default();
+    for line in log.lines() {
+        let mut f = line.splitn(3, '\t');
+        let (Some(sha), Some(parents), Some(subject)) = (f.next(), f.next(), f.next()) else {
+            continue;
+        };
+        let parents: Vec<&str> = parents.split_whitespace().collect();
+        let (Some(n), [parent]) = (pull_number(subject), parents.as_slice()) else {
+            continue;
+        };
+        if !heads.contains_key(&n) {
+            continue;
+        }
+        if !named.contains_key(&n) {
+            order.push(n);
+        }
+        named
+            .entry(n)
+            .or_default()
+            .push((sha.to_string(), parent.to_string()));
+    }
+    for n in order {
+        let head = &heads[&n];
+        let squashes = &named[&n];
+        let [(squash, parent)] = squashes.as_slice() else {
+            for path in &src.lockfiles {
+                out.push(skip(head, path, "squash-ambiguous-commit"));
+            }
+            continue;
+        };
+        let mut proof: Option<&'static str> = None;
+        let mut proven = false;
+        for path in &src.lockfiles {
+            if max_taken.is_some_and(|m| *taken >= m) {
+                return Ok(());
+            }
+            let parents = [parent.as_str(), head.as_str()];
+            match candidate(repo, src, oracle, squash, &parents, path)? {
+                Err(why) => out.push(skip(squash, path, why)),
+                Ok(mut c) => {
+                    if !proven {
+                        proof = squash_proof(repo, src, &c)?.err();
+                        proven = true;
                     }
-                },
+                    if let Some(why) = proof {
+                        out.push(Considered {
+                            plain_git: Some(c.plain_git),
+                            ..skip(squash, path, why)
+                        });
+                    } else {
+                        c.pull_request = Some(n);
+                        offer(out, taken, select, squash, path, Ok(c));
+                    }
+                }
             }
         }
     }
-    Ok(out)
+    Ok(())
 }
 
 /// `survey`: counts the candidates of one source without writing fixtures.
@@ -457,6 +661,7 @@ mod tests {
             max_file_bytes: 1,
             git_clean_percent: 25,
             license: None,
+            squash_prs: false,
         };
         // Relative to the process directory, as the default `bench-cache/`.
         let cwd = std::env::current_dir().unwrap();
@@ -495,6 +700,37 @@ mod tests {
                     .contains("git_clean_percent"),
                 "{bad}"
             );
+        }
+    }
+
+    #[test]
+    fn squash_prs_is_opt_in_and_a_boolean() {
+        let ok = "[[source]]\nurl = \"https://github.com/sharkdp/bat\"\necosystem = \"cargo\"\nlockfiles = [\"Cargo.lock\"]\nrevision = \"0123456789012345678901234567890123456789\"\nmax_cases = 8\nmax_file_bytes = 250000\n";
+        assert!(!parse_sources(ok).unwrap()[0].squash_prs);
+        let with = |v: &str| format!("{ok}squash_prs = {v}\n");
+        assert!(parse_sources(&with("true")).unwrap()[0].squash_prs);
+        assert!(!parse_sources(&with("false")).unwrap()[0].squash_prs);
+        assert!(
+            parse_sources(&with("\"yes\""))
+                .unwrap_err()
+                .contains("squash_prs")
+        );
+    }
+
+    #[test]
+    fn pull_numbers_come_only_from_a_trailing_reference() {
+        assert_eq!(pull_number("Fix it (#12)"), Some(12));
+        assert_eq!(pull_number("Fix it (#12) "), Some(12));
+        for no in [
+            "Fix it",
+            "Fix #12",
+            "Fix (#12) now",
+            "Fix (#012)",
+            "Fix (#)",
+            "Revert \"Fix (#12)\"",
+            "Fix (#1a)",
+        ] {
+            assert_eq!(pull_number(no), None, "{no}");
         }
     }
 }
