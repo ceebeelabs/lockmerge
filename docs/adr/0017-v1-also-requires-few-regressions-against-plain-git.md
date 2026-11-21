@@ -1,6 +1,6 @@
 # 0017. v1 also requires few regressions against plain git (amends ADR 0005)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 
 ## Context
