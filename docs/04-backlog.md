@@ -266,7 +266,8 @@ Size M. Depends on: 5 (lockmerge-bench). Owner only.
 Fetch pull request refs in `extract` so squash-merged conflicts, which have no
 merge commit, can become cases.
 Acceptance: `extract` is tested on a small temporary repository with a
-squash-merged pull request ref.
+squash-merged pull request ref. Done in #91 (opt-in `squash_prs`, section 3.1 of
+docs/02-oracle.md).
 
 ### 32. Replay rebase and cherry-pick in the harness (to file; [#22](https://github.com/ceebeelabs/lockmerge/issues/22))
 

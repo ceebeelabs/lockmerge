@@ -145,6 +145,30 @@ Octopus merges are skipped. Every skip is listed with its reason in
 
 Mapping: `ours = P1`, `theirs = P2`, `base = B`, `expected = M`.
 
+**Squash-merged pull requests (opt-in, issue #91).** Most of the repositories
+squash-merge, so a source with `squash_prs = true` in `sources.toml` also
+recovers them from `refs/pull/<n>/head` (fetched by `extract` and `survey`,
+owner side, with network). A squash commit `S` is a one-parent commit on the
+first-parent history of the pinned revision whose subject ends with `(#n)`, for
+a pull request `n` with a ref. Then `ours = S`'s parent, `theirs` = the pull
+request head, `base` = their single merge base and `expected = S`, and rules 1
+to 3 above apply unchanged. A squash merge is still a three-way merge of base,
+ours and theirs with the committed resolution as expected. Everything else is
+skipped with a reason in `INDEX.toml`, never guessed:
+
+- `skipped:squash-ambiguous-commit`: more than one commit names the pull
+  request (listed under the pull request head).
+- `skipped:squash-overlap-unproven`: the pull request and the default branch
+  both changed a path other than a lockfile, so that `S` is the pull request
+  applied cannot be proven.
+- `skipped:squash-not-the-pull-request`: `S` changes other paths than the pull
+  request, or a path of it differs from the pull request head.
+
+A pull request without a commit that names it (not merged, or merged some
+other way) is not listed. `case.toml` records `pull_request = <n>`; its
+`merge_commit` is `S` and `parents` are `[S's parent, head]`. Squash cases are
+appended after the merge commits in the order of choice (section 6.1).
+
 ### 3.2 Reachable or re-resolved
 
 Computed at extraction from the lockfile bytes, and recomputed by `check`.
@@ -446,7 +470,8 @@ re-resolved case (a merge commit that carries an id neither side had), and the
 saved manifests.
 
 1. `sources.toml` lists repositories: `url`, `ecosystem`, lockfile path(s), a
-   pinned tip `revision`, `max_cases`, `max_file_bytes`. Only public
+   pinned tip `revision`, `max_cases`, `max_file_bytes`, and optionally
+   `squash_prs = true` (section 3.1). Only public
    repositories with an accepted license; never the orchestrator's repository
    or any history from it.
 2. `survey`: `git clone --bare --filter=blob:none`, list merge commits
