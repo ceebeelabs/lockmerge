@@ -113,7 +113,7 @@ impl Shared {
     }
 
     /// The manifests whose conflicting text merge was read as two insertions
-    /// (ADR 0019), among those the rules have read so far.
+    /// (ADR 0018), among those the rules have read so far.
     pub fn kept_both(&self) -> &[String] {
         match self.found.get() {
             Some(Ok(found)) => &found.kept_both,

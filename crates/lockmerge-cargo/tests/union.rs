@@ -1,4 +1,4 @@
-//! ADR 0019: a manifest text conflict that is two insertions. The cases are
+//! ADR 0018: a manifest text conflict that is two insertions. The cases are
 //! the `accept-*` and `refuse-*` directories of `tests/fixtures/rules/cargo/M4`
 //! (run once by the lint in `rules.rs`); here each runs again with the two
 //! branches exchanged, which must give the same bytes or the same refusal.

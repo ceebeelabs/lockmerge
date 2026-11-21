@@ -101,7 +101,7 @@ pub static RULES: &[RuleDef] = &[
         notice: Some(
             "Cargo.toml has a merge conflict; the merged Cargo.lock assumes both added dependencies are kept.",
         ),
-        adr: "0019",
+        adr: "0018",
     },
     RuleDef {
         id: B1,

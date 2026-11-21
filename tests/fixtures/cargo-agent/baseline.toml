@@ -12,5 +12,5 @@ max_unverified = 0
 # The regression ratchet (ADR 0017): git-clean-correct cases lockmerge refuses.
 # It may only go down. Measured with the index files: 19 refusals of 27
 # git-clean-correct cases (21 before them); 8 of 27 with the insertion
-# conflicts of ADR 0019 (#88).
+# conflicts of ADR 0018 (#88).
 max_regressions = 8

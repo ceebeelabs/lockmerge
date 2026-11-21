@@ -354,7 +354,7 @@ is clean, so it is not a dependency-level merge of our own. The index content is
 read (stage 0 does not exist at driver time); the one use of the index is the comparison `git diff --cached --quiet HEAD` of "Proof of ours", and the working tree is never
 read: the result depends only on the three inputs and the git objects.
 
-**A conflict of two insertions (M4, ADR 0019).** On a conflict the driver runs
+**A conflict of two insertions (M4, ADR 0018).** On a conflict the driver runs
 `git merge-file -p --diff3` once more and reads the hunks. The manifest is
 treated as merged only if **every** hunk is an insertion by both sides at one
 base position (the base part is empty, neither side's part is), each side's

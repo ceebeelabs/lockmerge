@@ -1,4 +1,4 @@
-//! The manifest text conflict that is provably two insertions (ADR 0019).
+//! The manifest text conflict that is provably two insertions (ADR 0018).
 //!
 //! `git merge-file --diff3` conflicts when both branches add a line at the
 //! same place, for example one dependency each at the end of the same
