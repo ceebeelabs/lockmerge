@@ -1,0 +1,25 @@
+[package]
+name = "lockmerge-cli"
+description = "The lockmerge binary: the git merge driver and its installer"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "lockmerge"
+path = "src/main.rs"
+
+[lib]
+name = "lockmerge_cli"
+path = "src/lib.rs"
+
+[dependencies]
+lockmerge-core = { path = "../lockmerge-core" }
+lockmerge-env = { path = "../lockmerge-env" }
+lockmerge-cargo = { path = "../lockmerge-cargo" }
+
+[dev-dependencies]
+lockmerge-core = { path = "../lockmerge-core", features = ["testkit"] }
