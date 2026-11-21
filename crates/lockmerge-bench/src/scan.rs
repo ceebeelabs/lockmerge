@@ -13,6 +13,9 @@ use toml_edit::DocumentMut;
 
 const GIT_TIMEOUT: Duration = Duration::from_secs(600);
 
+/// The default for `Source::git_clean_percent`.
+pub const DEFAULT_GIT_CLEAN_PERCENT: u64 = 25;
+
 /// One entry of `sources.toml`.
 #[derive(Clone, Debug)]
 pub struct Source {
@@ -24,6 +27,10 @@ pub struct Source {
     pub revision: String,
     pub max_cases: usize,
     pub max_file_bytes: u64,
+    /// The most `max_cases` that may be cases where plain git merges the
+    /// lockfile cleanly, in percent (docs/02-oracle.md section 6.1). The rest
+    /// is filled with plain-git conflicts first. Default 25.
+    pub git_clean_percent: u64,
     /// The SPDX expression the owner states; checked against the license
     /// files at the pinned commit.
     pub license: Option<String>,
@@ -75,6 +82,15 @@ pub fn parse_sources(text: &str) -> Result<Vec<Source>, String> {
                 .and_then(|v| u64::try_from(v).ok())
                 .ok_or_else(|| ctx(k))
         };
+        let git_clean_percent = match t.get("git_clean_percent") {
+            None => DEFAULT_GIT_CLEAN_PERCENT,
+            Some(_) => int("git_clean_percent").ok().filter(|p| *p <= 100).ok_or_else(|| {
+                format!(
+                    "sources.toml: source {} `git_clean_percent` must be an integer from 0 to 100",
+                    n + 1
+                )
+            })?,
+        };
         out.push(Source {
             name: s("name").unwrap_or_else(|| slug(&url)),
             ecosystem: s("ecosystem").ok_or_else(|| ctx("ecosystem"))?,
@@ -82,6 +98,7 @@ pub fn parse_sources(text: &str) -> Result<Vec<Source>, String> {
             revision,
             max_cases: int("max_cases")? as usize,
             max_file_bytes: int("max_file_bytes")?,
+            git_clean_percent,
             license: s("license"),
             url,
         });
@@ -155,6 +172,45 @@ pub fn ensure_clone(source: &Source, dir: &Path) -> Result<(), String> {
         })
 }
 
+/// What plain `git merge` does with the lockfile of a case, with no driver.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PlainGit {
+    Conflict,
+    Clean,
+}
+
+impl PlainGit {
+    pub fn name(self) -> &'static str {
+        match self {
+            PlainGit::Conflict => "conflict",
+            PlainGit::Clean => "clean",
+        }
+    }
+}
+
+/// Runs git's three-way file merge on the three blobs, the content merge a
+/// plain `git merge` of this path does (the replay in `check` merges the
+/// fixture alone, so the repository's own attributes do not apply). `None`
+/// when git fails rather than reports conflicts.
+fn plain_git(base: &[u8], ours: &[u8], theirs: &[u8]) -> Option<PlainGit> {
+    let tmp = crate::util::TempDir::new("plain").ok()?;
+    for (name, bytes) in [("ours", ours), ("base", base), ("theirs", theirs)] {
+        let p = tmp.path().join(name);
+        std::fs::write(&p, bytes).ok()?;
+    }
+    let mut cmd = git_plain(tmp.path());
+    cmd.args(["merge-file", "-p", "ours", "base", "theirs"]);
+    match run(cmd, GIT_TIMEOUT) {
+        Ok(r) => match r.code {
+            Some(0) => Some(PlainGit::Clean),
+            // The exit code is the number of conflicts, capped at 127.
+            Some(n) if (1..=127).contains(&n) => Some(PlainGit::Conflict),
+            _ => None,
+        },
+        Err(_) => None,
+    }
+}
+
 /// A merge that is a case.
 #[derive(Clone, Debug)]
 pub struct Candidate {
@@ -168,6 +224,7 @@ pub struct Candidate {
     pub expected: Vec<u8>,
     pub kind: Kind,
     pub foreign: Vec<String>,
+    pub plain_git: PlainGit,
     /// Ids that changed between base and either side, to diversify cases.
     pub change_set: BTreeSet<String>,
 }
@@ -183,6 +240,9 @@ pub struct Considered {
     pub merge: String,
     pub path: String,
     pub outcome: Outcome,
+    /// What plain git does, known once the merge is a candidate (also when it
+    /// is skipped afterwards, say as a duplicate).
+    pub plain_git: Option<PlainGit>,
 }
 
 /// What the caller says about a candidate.
@@ -196,6 +256,7 @@ fn skip(merge: &str, path: &str, why: &str) -> Considered {
         merge: merge.to_string(),
         path: path.to_string(),
         outcome: Outcome::Skipped(format!("skipped:{why}")),
+        plain_git: None,
     }
 }
 
@@ -257,6 +318,9 @@ fn candidate(
     if oracle.ids(&expected).is_err() || oracle.valid(&expected).is_err() {
         return Ok(Err("expected-invalid"));
     }
+    let Some(plain) = plain_git(&base_bytes, &ours, &theirs) else {
+        return Ok(Err("plain-git-error"));
+    };
     let foreign = foreign_ids(oracle, &base_bytes, &ours, &theirs, &expected)?;
     let ids = |b: &[u8]| oracle.ids(b).unwrap_or_default();
     let (ib, io, it) = (ids(&base_bytes), ids(&ours), ids(&theirs));
@@ -276,6 +340,7 @@ fn candidate(
         expected,
         kind: kind_of(&foreign),
         foreign,
+        plain_git: plain,
         change_set,
     }))
 }
@@ -308,12 +373,16 @@ pub fn scan(
             match candidate(repo, src, oracle, merge, &parents, path)? {
                 Err(why) => out.push(skip(merge, path, why)),
                 Ok(c) => match select(&c) {
-                    Selection::Skip(why) => out.push(skip(merge, path, why)),
+                    Selection::Skip(why) => out.push(Considered {
+                        plain_git: Some(c.plain_git),
+                        ..skip(merge, path, why)
+                    }),
                     Selection::Take => {
                         taken += 1;
                         out.push(Considered {
                             merge: merge.to_string(),
                             path: path.to_string(),
+                            plain_git: Some(c.plain_git),
                             outcome: Outcome::Case(Box::new(c)),
                         });
                     }
@@ -327,19 +396,24 @@ pub fn scan(
 /// `survey`: counts the candidates of one source without writing fixtures.
 pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, String> {
     let all = scan(repo, src, oracle, None, &mut |_| Selection::Take)?;
-    let (mut reachable, mut re_resolved) = (0, 0);
+    let (mut reachable, mut re_resolved, mut conflicts) = (0, 0, 0);
     let mut skips: std::collections::BTreeMap<String, usize> = Default::default();
     for c in &all {
         match &c.outcome {
-            Outcome::Case(b) => match b.kind {
-                Kind::Reachable => reachable += 1,
-                Kind::ReResolved => re_resolved += 1,
-            },
+            Outcome::Case(b) => {
+                match b.kind {
+                    Kind::Reachable => reachable += 1,
+                    Kind::ReResolved => re_resolved += 1,
+                }
+                if b.plain_git == PlainGit::Conflict {
+                    conflicts += 1;
+                }
+            }
             Outcome::Skipped(why) => *skips.entry(why.clone()).or_default() += 1,
         }
     }
     let mut s = format!(
-        "{}: {} merge/path pairs considered, {} candidates (reachable {reachable}, re-resolved {re_resolved})",
+        "{}: {} merge/path pairs considered, {} candidates (reachable {reachable}, re-resolved {re_resolved}; plain git conflicts {conflicts})",
         src.name,
         all.len(),
         reachable + re_resolved
@@ -381,6 +455,7 @@ mod tests {
             revision: rev,
             max_cases: 1,
             max_file_bytes: 1,
+            git_clean_percent: 25,
             license: None,
         };
         // Relative to the process directory, as the default `bench-cache/`.
@@ -405,5 +480,21 @@ mod tests {
         let short = ok.replace("0123456789012345678901234567890123456789", "main");
         assert!(parse_sources(&short).unwrap_err().contains("40-character"));
         assert!(parse_sources(&ok.replace("max_cases = 8\n", "")).is_err());
+        // The share of git-clean cases defaults to 25 and is a percentage.
+        assert_eq!(s[0].git_clean_percent, 25);
+        let with = |v: &str| format!("{ok}git_clean_percent = {v}\n");
+        assert_eq!(parse_sources(&with("0")).unwrap()[0].git_clean_percent, 0);
+        assert_eq!(
+            parse_sources(&with("100")).unwrap()[0].git_clean_percent,
+            100
+        );
+        for bad in ["101", "-1", "\"25\"", "12.5"] {
+            assert!(
+                parse_sources(&with(bad))
+                    .unwrap_err()
+                    .contains("git_clean_percent"),
+                "{bad}"
+            );
+        }
     }
 }

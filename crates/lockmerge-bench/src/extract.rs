@@ -7,7 +7,9 @@
 use crate::case::license_allowed;
 use crate::classify::Kind;
 use crate::oracle::{CargoOracle, Oracle, path_package_names};
-use crate::scan::{Candidate, Considered, Outcome, Selection, Source, ensure_clone, git_out, scan};
+use crate::scan::{
+    Candidate, Considered, Outcome, PlainGit, Selection, Source, ensure_clone, git_out, scan,
+};
 use crate::util::sha256_hex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -274,7 +276,8 @@ fn write_case(
 /// Merges this run's entries into `<eco>/INDEX.toml`, keeping the entries of
 /// other repositories.
 fn write_index(path: &Path, src: &Source, considered: &[Considered]) -> Result<(), String> {
-    let mut entries: Vec<(String, String, String, String)> = Vec::new();
+    // repository, merge, lockfile path, result, plain git (empty if unknown)
+    let mut entries: Vec<(String, String, String, String, String)> = Vec::new();
     if let Ok(existing) = fs::read_to_string(path) {
         let doc: DocumentMut = existing
             .parse()
@@ -288,6 +291,7 @@ fn write_index(path: &Path, src: &Source, considered: &[Considered]) -> Result<(
                         s("merge_commit"),
                         s("lockfile_path"),
                         s("result"),
+                        s("plain_git"),
                     ));
                 }
             }
@@ -298,13 +302,23 @@ fn write_index(path: &Path, src: &Source, considered: &[Considered]) -> Result<(
             Outcome::Skipped(why) => why.clone(),
             Outcome::Case(b) => format!("case:{}", b.kind.name()),
         };
-        entries.push((src.url.clone(), c.merge.clone(), c.path.clone(), result));
+        let plain = c
+            .plain_git
+            .map(|g| g.name().to_string())
+            .unwrap_or_default();
+        entries.push((
+            src.url.clone(),
+            c.merge.clone(),
+            c.path.clone(),
+            result,
+            plain,
+        ));
     }
     entries.sort();
     let mut s = String::from(
-        "# Every merge considered by `lockmerge-bench extract`, with the result: a case\n# or the reason it was skipped (docs/02-oracle.md section 3.1).\n",
+        "# Every merge considered by `lockmerge-bench extract`, with the result: a case\n# or the reason it was skipped (docs/02-oracle.md section 3.1), and what plain\n# git does with the lockfile where that was checked.\n",
     );
-    for (repo, merge, lock, result) in entries {
+    for (repo, merge, lock, result, plain) in entries {
         s.push_str(&format!(
             "\n[[merge]]\nrepository = {}\nmerge_commit = {}\nlockfile_path = {}\nresult = {}\n",
             q(&repo),
@@ -312,8 +326,55 @@ fn write_index(path: &Path, src: &Source, considered: &[Considered]) -> Result<(
             q(&lock),
             q(&result)
         ));
+        if !plain.is_empty() {
+            s.push_str(&format!("plain_git = {}\n", q(&plain)));
+        }
     }
     write(path, s.as_bytes())
+}
+
+/// Picks at most `max_cases` of the candidates (docs/02-oracle.md section
+/// 6.1) and turns the others into skips with a reason. Plain-git conflicts
+/// come first, newest first; then clean merges, newest first, up to
+/// `git_clean_percent` of `max_cases`. Re-resolved cases are at most half of
+/// `max_cases`, so the headline denominator is not starved, and a candidate
+/// with the same set of changed ids as one already taken is a duplicate.
+pub fn choose(mut considered: Vec<Considered>, src: &Source) -> Vec<Considered> {
+    let clean_cap = src.max_cases * src.git_clean_percent as usize / 100;
+    let re_cap = src.max_cases / 2;
+    let mut order: Vec<usize> = (0..considered.len())
+        .filter(|i| matches!(considered[*i].outcome, Outcome::Case(_)))
+        .collect();
+    // Stable: newest first within each group.
+    order.sort_by_key(|i| considered[*i].plain_git == Some(PlainGit::Clean));
+    let mut seen: BTreeSet<BTreeSet<String>> = BTreeSet::new();
+    let (mut taken, mut clean, mut re_resolved) = (0usize, 0usize, 0usize);
+    for i in order {
+        let Outcome::Case(c) = &considered[i].outcome else {
+            continue;
+        };
+        let is_clean = c.plain_git == PlainGit::Clean;
+        let why = if c.kind == Kind::ReResolved && re_resolved >= re_cap {
+            Some("re-resolved-quota")
+        } else if is_clean && clean >= clean_cap {
+            Some("git-clean-quota")
+        } else if taken >= src.max_cases {
+            Some("over-max-cases")
+        } else if !seen.insert(c.change_set.clone()) {
+            Some("duplicate-change-set")
+        } else {
+            None
+        };
+        match why {
+            Some(why) => considered[i].outcome = Outcome::Skipped(format!("skipped:{why}")),
+            None => {
+                taken += 1;
+                clean += usize::from(is_clean);
+                re_resolved += usize::from(c.kind == Kind::ReResolved);
+            }
+        }
+    }
+    considered
 }
 
 pub struct ExtractOpts {
@@ -335,28 +396,14 @@ pub fn extract(src: &Source, opts: &ExtractOpts) -> Result<String, String> {
     ensure_clone(src, &repo)?;
     let (license_expr, license_files) = license(&repo, src)?;
 
-    let mut seen: BTreeSet<BTreeSet<String>> = BTreeSet::new();
-    let mut re_resolved = 0usize;
-    // Half of `max_cases` at most, so the headline denominator is not starved.
-    let re_quota = src.max_cases / 2;
-    let considered = scan(
-        &repo,
-        src,
-        &oracle as &dyn Oracle,
-        Some(src.max_cases),
-        &mut |c| {
-            if c.kind == Kind::ReResolved && re_resolved >= re_quota {
-                return Selection::Skip("re-resolved-quota");
-            }
-            if !seen.insert(c.change_set.clone()) {
-                return Selection::Skip("duplicate-change-set");
-            }
-            if c.kind == Kind::ReResolved {
-                re_resolved += 1;
-            }
+    // Every merge is scanned; the choice among the candidates comes after, so
+    // plain-git conflicts can be preferred over newer clean merges.
+    let considered = choose(
+        scan(&repo, src, &oracle as &dyn Oracle, None, &mut |_| {
             Selection::Take
-        },
-    )?;
+        })?,
+        src,
+    );
 
     let repo_dir = opts.out.join(&src.ecosystem).join(&src.name);
     let mut taken = 0;
