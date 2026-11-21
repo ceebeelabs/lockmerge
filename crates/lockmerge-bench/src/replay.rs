@@ -134,6 +134,18 @@ fn configure_driver(dir: &Path, case: &Case) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// The `CARGO_HOME` of one case: a fresh temporary directory whose
+/// `registry/index/` holds the case's `index/` files and nothing else. A case
+/// without `index/` gets an empty directory, so the registry cache of a replay
+/// comes only from the case, never from the machine (section 3.3).
+pub fn case_cargo_home(case: &Case) -> Result<TempDir, String> {
+    let home = TempDir::new("cargo-home").map_err(|e| e.to_string())?;
+    for f in &case.index {
+        write_file(home.path(), &format!("registry/index/{}", f.rel), &f.bytes)?;
+    }
+    Ok(home)
+}
+
 /// Merges `other` into `branch` (reset to `tip`) with real `git merge`.
 fn merge(
     dir: &Path,
@@ -142,6 +154,7 @@ fn merge(
     (branch, tip): (&str, &str),
     (other, other_tip): (&str, &str),
     with_driver: bool,
+    cargo_home: &Path,
 ) -> Merged {
     let prepared = (|| -> Result<(), String> {
         let _ = git(dir, &["merge", "--abort"]);
@@ -156,7 +169,8 @@ fn merge(
         return Merged::Error(e);
     }
     let mut cmd: Command = git_isolated(dir);
-    cmd.args(["merge", "--no-ff", "--no-edit", other]);
+    cmd.args(["merge", "--no-ff", "--no-edit", other])
+        .env("CARGO_HOME", cargo_home);
     if with_driver && let Some(d) = &opts.driver_dir {
         let mut paths = vec![d.clone()];
         if let Some(old) = std::env::var_os("PATH") {
@@ -219,8 +233,18 @@ pub fn replay(case: &Case, opts: &ReplayOpts) -> Result<Replayed, String> {
     let tmp = TempDir::new("replay").map_err(|e| e.to_string())?;
     let dir = tmp.path();
     let (ours, theirs) = build_repo(dir, case)?;
+    let home = case_cargo_home(case)?;
+    let home = home.path();
 
-    let plain = match merge(dir, case, opts, ("ours", &ours), ("theirs", &theirs), false) {
+    let plain = match merge(
+        dir,
+        case,
+        opts,
+        ("ours", &ours),
+        ("theirs", &theirs),
+        false,
+        home,
+    ) {
         Merged::Conflict => GitRun::Conflict,
         Merged::Clean(b) => GitRun::Clean(b),
         Merged::Error(e) => GitRun::Error(e),
@@ -239,6 +263,7 @@ pub fn replay(case: &Case, opts: &ReplayOpts) -> Result<Replayed, String> {
         ("ours", &ours),
         ("theirs", &theirs),
         true,
+        home,
     ));
     let lm_swapped = as_run(merge(
         dir,
@@ -247,6 +272,7 @@ pub fn replay(case: &Case, opts: &ReplayOpts) -> Result<Replayed, String> {
         ("theirs", &theirs),
         ("ours", &ours),
         true,
+        home,
     ));
     Ok(Replayed {
         git: plain,

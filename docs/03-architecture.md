@@ -70,9 +70,10 @@ tests/fixtures/      exact-byte fixtures (ADR 0007)
 
 - `core` depends on nothing but `std`.
 - `cargo`, `uv` and `pnpm` depend on `core` and their parsers.
-- `env` depends on `core` and `lockmerge-cargo`, for the `RegistryIndex` trait
-  and the index path helper only. A newtype in the CLI would be the
-  alternative, but it is clumsier.
+- `env` depends on `core` only. The `IndexCache` trait that `CargoHome`
+  implements lives in `core`, next to `Manifests`, so `env` needs no format
+  crate (this replaces the first plan, a `RegistryIndex` trait in
+  `lockmerge-cargo`).
 - `cli` and `bench` depend on everything.
 - `core` and the format crates use `#![forbid(unsafe_code)]`. Clippy
   `disallowed-methods` forbids `std::process`, `std::fs` and `std::env` in
@@ -94,28 +95,29 @@ tests/fixtures/      exact-byte fixtures (ADR 0007)
   as pure functions over bytes:
   - the relative path of a crate's entry inside an index directory, from the
     crate name;
-  - parsing a sparse index entry and a git index entry;
+  - parsing a cached index entry file (the cache layout is pinned in
+    `docs/formats/cargo-registry-index.md`; a git index's JSON files are git
+    objects and are not read);
   - matching name, version and `cksum` against the lockfile's checksum;
   - reading `links`.
 
   `lockmerge-env::CargoHome` only lists directories, reads files and hands the
   bytes over. It decides nothing. The proof logic is therefore testable on
-  fixtures without a `CARGO_HOME`. The sketch, in `lockmerge-cargo`:
+  fixtures without a `CARGO_HOME`. The sketch:
 
   ```rust
-  /// Implemented by lockmerge-env (real files) and testkit (fixtures).
-  pub trait RegistryIndex {
-      /// Raw bytes of the entry file for `rel_path`, one item per candidate
-      /// index directory that has it. Empty if the cache is absent or unreadable.
-      fn entry_files(&self, registry: &RegistryId, rel_path: &str) -> Vec<RawEntry>;
+  // In core. Implemented by lockmerge-env (real files) and the testkit.
+  pub trait IndexCache {
+      /// The bytes of the file at `rel_path` in each directory of
+      /// registry/index/ that has it; empty if the cache is absent.
+      fn files(&self, rel_path: &str) -> Vec<Vec<u8>>;
   }
-  pub struct RawEntry { pub layout: CacheLayout /* Sparse | Git */, pub bytes: Vec<u8> }
 
-  // Pure, in lockmerge-cargo:
-  pub fn index_rel_path(name: &str) -> String;
-  pub fn parse_entry(raw: &RawEntry) -> Result<Vec<IndexVersion>, EntryError>;
-  pub fn lookup(files: &[RawEntry], name: &str, version: &str, cksum: &str) -> IndexLookup;
-  // IndexLookup: Found { links: Option<String> } | Unavailable
+  // Pure, in lockmerge-cargo (`index`), pinned in docs/formats/cargo-registry-index.md:
+  pub fn entry_path(name: &str) -> Option<String>;       // ".cache/ab/cd/abcdef"
+  pub fn parse_entry(bytes: &[u8]) -> Result<Vec<Record>, EntryError>;
+  pub fn lookup(files: &[Vec<u8>], name: &str, version: &str, cksum: &str) -> IndexLookup;
+  // IndexLookup: Found { links: Option<String> } | Unavailable(reason)
   ```
 
 - Registry directory selection. The cache directory name

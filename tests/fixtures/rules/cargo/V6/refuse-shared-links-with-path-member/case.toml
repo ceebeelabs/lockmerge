@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool; crate names and checksums are synthetic. Ours adds the registry crate alpha 1.0.0 to app and theirs adds beta 2.0.0 to tool. The index cache file(s) under index/ are written by hand in the layout of docs/formats/cargo-registry-index.md (header 03 02 00 00 00, then version and JSON records), not taken from a real cache. The member tool declares links = z and alpha declares links = z."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R15"

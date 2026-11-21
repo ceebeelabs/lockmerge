@@ -86,6 +86,8 @@ pub struct Manifest {
     pub features: BTreeMap<String, Vec<String>>,
     pub resolver: Option<String>,
     pub edition: Option<String>,
+    /// The `[package] links` value, for the native-links proof (R15).
+    pub links: Option<String>,
     /// Present for the workspace root.
     pub workspace: Option<Workspace>,
 }
@@ -390,6 +392,9 @@ pub fn parse(text: &str, dir: &str, root_ws: Option<&Workspace>) -> Result<Manif
         m.edition = inheritable(p, "edition", |w| w.edition.clone(), ws)?;
         if let Some(r) = p.get("resolver") {
             m.resolver = Some(string(r, "package resolver")?);
+        }
+        if let Some(l) = p.get("links") {
+            m.links = Some(string(l, "package links")?);
         }
     }
     if let Some(item) = root.get("features") {
