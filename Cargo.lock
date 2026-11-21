@@ -88,6 +88,7 @@ checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 name = "lockmerge-bench"
 version = "0.0.0"
 dependencies = [
+ "lockmerge-cargo",
  "lockmerge-core",
  "sha2",
  "toml_edit",
@@ -100,6 +101,15 @@ dependencies = [
  "lockmerge-core",
  "semver",
  "toml_edit",
+]
+
+[[package]]
+name = "lockmerge-cli"
+version = "0.0.0"
+dependencies = [
+ "lockmerge-cargo",
+ "lockmerge-core",
+ "lockmerge-env",
 ]
 
 [[package]]
