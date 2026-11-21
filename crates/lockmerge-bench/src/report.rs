@@ -56,8 +56,8 @@ fn eco_section(out: &mut String, e: &EcoReport, formats: &[&dyn Format]) {
     let _ = writeln!(out, "== {} ==", e.name);
     let _ = writeln!(
         out,
-        "  cases {} (reachable {}, re-resolved {}); fixtures {} bytes",
-        m.n, m.reachable, m.re_resolved, e.bytes
+        "  cases {} (reachable {}, re-resolved {}); fixtures {} bytes deduplicated (checked against the budget), {} bytes on disk",
+        m.n, m.reachable, m.re_resolved, e.size.unique, e.size.raw
     );
     let _ = writeln!(
         out,
