@@ -139,7 +139,6 @@ lib = { workspace = true }
 #[test]
 fn refuses_what_it_does_not_read() {
     let refused = [
-        "[patch.crates-io]\nserde = { path = \"serde\" }\n",
         "[replace]\n",
         "[package]\nname = \"a\"\n[dev_dependencies]\nx = \"1\"\n",
         "[package]\nname = \"a\"\n[dependencies]\nx = { version = \"1\", registry = \"other\" }\n",
@@ -157,7 +156,80 @@ fn refuses_what_it_does_not_read() {
     for text in refused {
         assert!(parse(text, "", None).is_err(), "{text}");
     }
-    assert!(unread("[patch.x]\n").0.contains("patch"));
+    assert!(unread("[patch.x]\nfoo = 1\n").0.contains("patch"));
+}
+
+#[test]
+fn reads_patch_tables_exactly_and_refuses_other_forms() {
+    let m = parse(
+        r#"
+[workspace]
+members = []
+
+[patch.crates-io]
+serde = { path = "vendor/../vendor/serde" }
+rand = { git = "https://example.test/rand", branch = "main", features = ["b", "a"] }
+
+[patch."https://example.test/index"]
+other = { registry = "mine", version = "1", package = "real" }
+
+[patch.crates-io.tokio]
+path = "tokio"
+"#,
+        "sub",
+        None,
+    )
+    .unwrap();
+    let crates_io = &m.patch["crates-io"];
+    assert_eq!(crates_io["serde"]["path"], "s:sub/vendor/serde");
+    assert_eq!(crates_io["rand"]["features"], "l:a,b");
+    assert_eq!(crates_io["tokio"]["path"], "s:sub/tokio");
+    assert_eq!(
+        m.patch["https://example.test/index"]["other"]["package"],
+        "s:real"
+    );
+    assert_eq!(m.patch_paths().len(), 2);
+    // The same patch written another way is the same patch.
+    let again = parse(
+        "[workspace]\nmembers = []\n[patch.crates-io]\nserde = { path = \"vendor/serde\" }\ntokio = { path = \"./tokio\" }\nrand = { git = \"https://example.test/rand\", features = [\"a\", \"b\"], branch = \"main\" }\n[patch.\"https://example.test/index\"]\nother = { package = \"real\", version = \"1\", registry = \"mine\" }\n",
+        "sub",
+        None,
+    )
+    .unwrap();
+    assert_eq!(again.patch, m.patch);
+    assert!(
+        parse("[workspace]\nmembers = []\n", "sub", None)
+            .unwrap()
+            .patch
+            .is_empty()
+    );
+
+    // Forms not read exactly: a key that is not known, a wrong type, an entry
+    // that is not a table, a patch with no or two sources, a path that leaves
+    // the repository, and a [patch] in a member manifest.
+    for patch in [
+        "[patch.crates-io]\nx = { path = \"p\", artifact = \"bin\" }\n",
+        "[patch.crates-io]\nx = { path = 1 }\n",
+        "[patch.crates-io]\nx = \"1\"\n",
+        "[patch.crates-io]\nx = { version = \"1\" }\n",
+        "[patch.crates-io]\nx = { path = \"p\", git = \"g\" }\n",
+        "[patch.crates-io]\nx = { path = \"../../out\" }\n",
+        "[patch.crates-io]\nx = { path = \"p\", optional = \"yes\" }\n",
+        "[patch]\ncrates-io = 1\n",
+    ] {
+        assert!(parse(patch, "", None).is_err(), "{patch}");
+    }
+    let ws = parse("[workspace]\nmembers = []\n", "", None)
+        .unwrap()
+        .workspace;
+    assert!(
+        parse(
+            "[package]\nname = \"m\"\n[patch.crates-io]\nx = { path = \"p\" }\n",
+            "m",
+            ws.as_ref()
+        )
+        .is_err()
+    );
 }
 
 #[test]
