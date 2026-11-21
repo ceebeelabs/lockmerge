@@ -1,0 +1,172 @@
+# Every agent-style case built by the owner-side synth (docs/02-oracle.md section 6.3).
+# The recipe of each case is in its case.toml.
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-01"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-02"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-03"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-04"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-05"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-06"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-07"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-08"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-09"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-10"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-11"
+result = "case:reachable"
+
+[[case]]
+repository = "alacritty-alacritty"
+case = "al-12"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-01"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-02"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-03"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-04"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-05"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-06"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-07"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-08"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-09"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-10"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-bat"
+case = "bat-11"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-01"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-02"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-03"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-04"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-05"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-06"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-07"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-08"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-09"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-10"
+result = "case:reachable"
+
+[[case]]
+repository = "sharkdp-fd"
+case = "fd-11"
+result = "case:reachable"
