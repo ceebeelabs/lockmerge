@@ -168,24 +168,31 @@ fn eco_section(out: &mut String, e: &EcoReport, formats: &[&dyn Format]) {
         &zero_filled(codes, &m.downgrades),
     );
 
-    // Why each case was refused for an unavailable input (R14), so the
-    // causes can be counted and the common ones fixed.
-    let unavailable: Vec<_> = e
-        .results
-        .iter()
-        .filter_map(|r| {
-            let a = r.attribution.as_ref()?;
-            let code = a.refusal.as_deref()?;
-            code.ends_with(".R14")
-                .then_some((r, a.refusal_detail.as_deref()))
-        })
-        .collect();
-    if !unavailable.is_empty() {
-        let _ = writeln!(
-            out,
-            "  Refusals for an unavailable input (R14), with the cause:"
-        );
-        for (r, detail) in unavailable {
+    // Why each case was refused for an unavailable input (R14) or because
+    // both branches changed one package's dependencies (R6), so the causes
+    // can be counted and the common ones fixed.
+    for (suffix, title) in [
+        (".R14", "an unavailable input (R14)"),
+        (
+            ".R6",
+            "both branches changing one package's dependencies (R6)",
+        ),
+    ] {
+        let listed: Vec<_> = e
+            .results
+            .iter()
+            .filter_map(|r| {
+                let a = r.attribution.as_ref()?;
+                let code = a.refusal.as_deref()?;
+                code.ends_with(suffix)
+                    .then_some((r, a.refusal_detail.as_deref()))
+            })
+            .collect();
+        if listed.is_empty() {
+            continue;
+        }
+        let _ = writeln!(out, "  Refusals for {title}, with the cause:");
+        for (r, detail) in listed {
             let _ = writeln!(out, "    {}: {}", r.id, detail.unwrap_or("(no detail)"));
         }
     }
@@ -273,6 +280,7 @@ mod tests {
         let results = vec![
             result("a", "toy.R14", "x [detail: no manifest]"),
             result("b", "toy.R15", "y [detail: two ids]"),
+            result("c", "toy.R6", "z [detail: the manifest differs]"),
         ];
         let e = EcoReport {
             name: "toy".into(),
@@ -285,6 +293,11 @@ mod tests {
         eco_section(&mut out, &e, &[]);
         assert!(out.contains("    a: x [detail: no manifest]"), "{out}");
         assert!(!out.contains("two ids"), "{out}");
+        assert!(out.contains("(R6), with the cause:"), "{out}");
+        assert!(
+            out.contains("    c: z [detail: the manifest differs]"),
+            "{out}"
+        );
     }
 
     #[test]

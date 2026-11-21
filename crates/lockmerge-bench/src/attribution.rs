@@ -91,7 +91,31 @@ impl Manifests for SavedManifests<'_> {
         cmd.args(["merge-file", "-p", "ours", "base", "theirs"]);
         match run(cmd, Duration::from_secs(30)) {
             Ok(r) if r.code == Some(0) => ManifestResult::Merged(r.stdout),
-            Ok(r) if matches!(r.code, Some(c) if c > 0 && c < 128) => ManifestResult::Conflict,
+            Ok(r) if matches!(r.code, Some(c) if c > 0 && c < 128) => {
+                // The same text with the base shown, for the format to read
+                // (ADR 0019).
+                let mut cmd = git_isolated(tmp.path());
+                cmd.args([
+                    "merge-file",
+                    "-p",
+                    "--diff3",
+                    "-L",
+                    "ours",
+                    "-L",
+                    "base",
+                    "-L",
+                    "theirs",
+                    "ours",
+                    "base",
+                    "theirs",
+                ]);
+                match run(cmd, Duration::from_secs(30)) {
+                    Ok(d) if matches!(d.code, Some(c) if c > 0 && c < 128) => {
+                        ManifestResult::Conflicted(d.stdout)
+                    }
+                    _ => ManifestResult::Conflict,
+                }
+            }
             Ok(r) => unavailable(format!("git merge-file: {}", r.stderr_text())),
             Err(_) => unavailable("git merge-file did not finish".into()),
         }

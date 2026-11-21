@@ -1,0 +1,4 @@
+source = "Hand-built reduction of rules/cargo/M2/accept-both-add-an-edge-to-the-same-member: a workspace of members app, cli, lib and tool with registry crates; checksums are synthetic. Ours adds `itoa` and theirs `leaf` (both used by cli) as the last entry of app's [build-dependencies] table, so the text merge conflicts; the .diff3 file is the output of git merge-file --diff3 for it."
+path = "Cargo.lock"
+outcome = "merged"
+applied = ["cargo.E1", "cargo.M2", "core.B1", "core.B1", "core.B1", "core.B1", "core.B1", "core.B1", "cargo.M4", "cargo.V2", "cargo.V3", "cargo.V4", "cargo.V5"]

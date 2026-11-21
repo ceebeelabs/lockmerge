@@ -77,7 +77,8 @@ pub type MakeManifests = dyn Fn(&Args, &[u8]) -> Box<dyn Manifests>;
 
 /// What the merge step decided, before anything is written.
 enum Decision {
-    Merged(Vec<u8>),
+    /// The merged bytes and the notices of the rules that were used.
+    Merged(Vec<u8>, Vec<&'static str>),
     Refused(String),
 }
 
@@ -123,8 +124,13 @@ pub fn run(
     };
 
     match decision {
-        Decision::Merged(bytes) => match write_atomically(&args.ours, &bytes) {
-            Ok(()) => EXIT_MERGED,
+        Decision::Merged(bytes, notices) => match write_atomically(&args.ours, &bytes) {
+            Ok(()) => {
+                for notice in notices {
+                    let _ = writeln!(err, "lockmerge: {notice}");
+                }
+                EXIT_MERGED
+            }
             Err(e) => internal(err, &format!("cannot write %A: {e}")),
         },
         Decision::Refused(reason) => {
@@ -182,7 +188,21 @@ fn decide(
     };
     let report = format.merge(&inputs, &cx).map_err(|e| e.to_string())?;
     Ok(match report.outcome {
-        Outcome::Clean(clean) => Decision::Merged(clean.into_bytes()),
+        Outcome::Clean(clean) => {
+            // Rules that carry a notice, once each, in the order they ran.
+            let mut notices: Vec<&'static str> = Vec::new();
+            for applied in &report.applied {
+                let notice = format
+                    .rules()
+                    .iter()
+                    .find(|r| r.id == applied.rule)
+                    .and_then(|r| r.notice);
+                if let Some(n) = notice.filter(|n| !notices.contains(n)) {
+                    notices.push(n);
+                }
+            }
+            Decision::Merged(clean.into_bytes(), notices)
+        }
         Outcome::Refused(_) => Decision::Refused(refusal_text(*format, &args.path, &report)),
     })
 }

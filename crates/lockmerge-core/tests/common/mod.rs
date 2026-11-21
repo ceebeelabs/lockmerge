@@ -30,21 +30,25 @@ pub static RULES: &[RuleDef] = &[
     RuleDef {
         id: "toy.E1",
         summary: "headers agree",
+        notice: None,
         adr: "0000",
     },
     RuleDef {
         id: "toy.M1",
         summary: "take the larger integer",
+        notice: None,
         adr: "0000",
     },
     RuleDef {
         id: "toy.P1",
         summary: "prune orphans",
+        notice: None,
         adr: "0000",
     },
     RuleDef {
         id: "toy.V1",
         summary: "no empty value",
+        notice: None,
         adr: "0000",
     },
 ];

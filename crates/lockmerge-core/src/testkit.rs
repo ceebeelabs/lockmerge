@@ -21,7 +21,9 @@
 //! A rule fixture holds merged manifests: `manifests/merged/<repo path>` is
 //! the merged manifest the fake returns for that path;
 //! `manifests/merged/<repo path>.conflict` (an empty file) makes it a
-//! [`ManifestResult::Conflict`]; any other path is unavailable. The per-side
+//! [`ManifestResult::Conflict`]; `manifests/merged/<repo path>.diff3` holds the
+//! `git merge-file --diff3` output and makes it a [`ManifestResult::Conflicted`];
+//! any other path is unavailable. The per-side
 //! layout `manifests/{base,ours,theirs}/<path>` belongs to benchmark cases
 //! (ADR 0007), which the bench replays through git; a rule fixture that has it
 //! is an error. A rule fixture may also hold each input's own manifests under
@@ -69,7 +71,11 @@ impl FakeManifests {
             Role::Base => Role::Base,
         };
         Self {
-            by_path: self.by_path.clone(),
+            by_path: self
+                .by_path
+                .iter()
+                .map(|(p, r)| (p.clone(), swap_result(r)))
+                .collect(),
             sides: self
                 .sides
                 .iter()
@@ -147,6 +153,15 @@ impl FakeManifests {
             let rel = format!("{prefix}{name}");
             if entry.is_dir() {
                 self.read_dir(&entry, &format!("{rel}/"))?;
+            } else if let Some(path) = rel.strip_suffix(".diff3") {
+                if self.by_path.contains_key(path) {
+                    return Err(format!(
+                        "{}: `{path}` has more than one manifest file",
+                        entry.display()
+                    ));
+                }
+                self.by_path
+                    .insert(path.to_string(), ManifestResult::Conflicted(read(&entry)?));
             } else if let Some(path) = rel.strip_suffix(".conflict") {
                 if !read(&entry)?.is_empty() {
                     return Err(format!(
@@ -175,6 +190,41 @@ impl FakeManifests {
         }
         Ok(())
     }
+}
+
+/// A conflicted text merge as git would write it with the two branches
+/// exchanged: the `ours` and `theirs` sections of each hunk trade places and
+/// the labels follow.
+fn swap_result(r: &ManifestResult) -> ManifestResult {
+    let ManifestResult::Conflicted(bytes) = r else {
+        return r.clone();
+    };
+    let text = String::from_utf8_lossy(bytes);
+    let (mut out, mut ours, mut theirs) = (String::new(), String::new(), String::new());
+    let (mut base, mut state) = (String::new(), 0);
+    for line in text.split_inclusive('\n') {
+        let plain = line.trim_end_matches(['\r', '\n']);
+        match (state, plain) {
+            (0, "<<<<<<< ours") => state = 1,
+            (1, "||||||| base") => state = 2,
+            (2, "=======") => state = 3,
+            (3, ">>>>>>> theirs") => {
+                out.push_str("<<<<<<< ours\n");
+                out.push_str(&theirs);
+                out.push_str("||||||| base\n");
+                out.push_str(&base);
+                out.push_str("=======\n");
+                out.push_str(&ours);
+                out.push_str(">>>>>>> theirs\n");
+                (ours, base, theirs, state) = (String::new(), String::new(), String::new(), 0);
+            }
+            (0, _) => out.push_str(line),
+            (1, _) => ours.push_str(line),
+            (2, _) => base.push_str(line),
+            _ => theirs.push_str(line),
+        }
+    }
+    ManifestResult::Conflicted(out.into_bytes())
 }
 
 impl Manifests for FakeManifests {

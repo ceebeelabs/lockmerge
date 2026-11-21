@@ -29,26 +29,31 @@ pub const CORE_RULES: &[RuleDef] = &[
     RuleDef {
         id: S1,
         summary: "Two inputs are identical, or one equals the base: return an input unchanged.",
+        notice: None,
         adr: "0012",
     },
     RuleDef {
         id: B1,
         summary: "An entry is identical in ours and theirs.",
+        notice: None,
         adr: "0012",
     },
     RuleDef {
         id: B2,
         summary: "An entry changed on one side only: take the changed one.",
+        notice: None,
         adr: "0012",
     },
     RuleDef {
         id: B3,
         summary: "An entry was added on one side only: take it.",
+        notice: None,
         adr: "0012",
     },
     RuleDef {
         id: B4,
         summary: "An entry was removed on one side and unchanged on the other: drop it.",
+        notice: None,
         adr: "0012",
     },
 ];

@@ -59,6 +59,7 @@ pub const E1: &str = "cargo.E1";
 pub const M1: &str = "cargo.M1";
 pub const M2: &str = "cargo.M2";
 pub const M3: &str = "cargo.M3";
+pub const M4: &str = "cargo.M4";
 pub const B1: &str = "cargo.B1";
 pub const C: &str = "cargo.C";
 pub const D: &str = "cargo.D";
@@ -73,66 +74,87 @@ pub static RULES: &[RuleDef] = &[
     RuleDef {
         id: E1,
         summary: "All three inputs are version 3 or 4 lockfiles of the same version, in Cargo's exact form, with no conflicting checksum, source, version change or id order.",
+        notice: None,
         adr: "0008#1",
     },
     RuleDef {
         id: M1,
         summary: "Both branches bumped a registry crate to different versions of one compatibility class: keep the higher one, with every dependent and the requirements and features proven.",
+        notice: None,
         adr: "0008#4",
     },
     RuleDef {
         id: M2,
         summary: "Both branches changed a path package's dependencies: combine them when the merged manifest declares exactly the merged set and every version satisfies its requirement.",
+        notice: None,
         adr: "0008#5",
     },
     RuleDef {
         id: M3,
         summary: "Drop a registry or git package that one branch removed and the other changed, or that the removals left unused, when nothing points at it.",
+        notice: None,
         adr: "0008#6",
+    },
+    RuleDef {
+        id: M4,
+        summary: "A Cargo.toml text conflict that is two insertions of whole entries at one place in one dependency table is read as both insertions, ours first.",
+        notice: Some(
+            "Cargo.toml has a merge conflict; the merged Cargo.lock assumes both added dependencies are kept.",
+        ),
+        adr: "0019",
     },
     RuleDef {
         id: B1,
         summary: "A one-sided version change is taken when every path package that depends on the crate still admits the new version in the merged manifest.",
+        notice: None,
         adr: "0008#4",
     },
     RuleDef {
         id: C,
         summary: "A one-sided change to a package's dependencies is taken when the merged manifests select the features the changing branch was resolved with.",
+        notice: None,
         adr: "0008#4",
     },
     RuleDef {
         id: D,
         summary: "A one-sided version change is not a downgrade.",
+        notice: None,
         adr: "0008#4",
     },
     RuleDef {
         id: F,
         summary: "The new entry of a moved crate keeps every dependency name the old one had.",
+        notice: None,
         adr: "0008#4",
     },
     RuleDef {
         id: V2,
         summary: "Every dependency edge of the merged set resolves to exactly one package.",
+        notice: None,
         adr: "0008#8",
     },
     RuleDef {
         id: V3,
         summary: "Every non-path package of the merged set is reachable from a path package.",
+        notice: None,
         adr: "0008#8",
     },
     RuleDef {
         id: V4,
         summary: "No two registry packages of the merged set share a name, a source and a semver compatibility class.",
+        notice: None,
         adr: "0008#8",
     },
     RuleDef {
         id: V5,
         summary: "The merged set is written in Cargo's canonical form, and every edge resolves back to its target.",
+        notice: None,
         adr: "0008#8",
     },
     RuleDef {
         id: V6,
         summary: "When each branch added different registry crates, every registry crate of the merged set has a matching registry index cache entry and no two packages share a `links` value.",
+        notice: None,
         adr: "0008#15",
     },
 ];

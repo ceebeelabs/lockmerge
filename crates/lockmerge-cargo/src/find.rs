@@ -13,7 +13,9 @@ use crate::manifest::{
     DepKey, Manifest, Selection, Source, Unread, Workspace, dir_of, join, parse,
 };
 use crate::model::Id;
+use crate::union;
 use lockmerge_core::{Context, ManifestResult, Role};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, BTreeSet};
 
 /// The merged manifests of every path package of the three lockfiles.
@@ -25,6 +27,9 @@ pub struct Found {
     /// Each path package of the lockfiles with its manifest's repository path
     /// and the merged manifest.
     pub packages: BTreeMap<Id, (String, Manifest)>,
+    /// Manifests whose text merge conflicted and was read as two insertions
+    /// (ADR 0019).
+    pub kept_both: Vec<String>,
     /// Path packages of the lockfiles that no manifest declares any more
     /// because a branch moved the package to another version (ADR 0018): the
     /// merged manifest of that directory declares the new version.
@@ -39,13 +44,26 @@ fn has_glob(s: &str) -> bool {
     s.contains(['*', '?', '[', ']', '{', '}'])
 }
 
-fn read_merged(cx: &Context<'_>, path: &str) -> Result<String, Unread> {
+/// The merged text of `path`. A conflict that is two insertions (ADR 0019) is
+/// read as both, and the path is noted in `kept`.
+fn read_merged(
+    cx: &Context<'_>,
+    path: &str,
+    kept: &RefCell<Vec<String>>,
+) -> Result<String, Unread> {
     match cx.manifests.merged(path) {
         ManifestResult::Merged(bytes) => match String::from_utf8(bytes) {
             Ok(s) => Ok(s),
             Err(_) => Err(Unread(format!("{path} is not UTF-8"))),
         },
         ManifestResult::Conflict => Err(Unread(format!("the text merge of {path} conflicts"))),
+        ManifestResult::Conflicted(text) => match union::resolve(&text) {
+            Ok(s) => {
+                kept.borrow_mut().push(path.to_string());
+                Ok(s)
+            }
+            Err(why) => Err(Unread(format!("the text merge of {path} conflicts: {why}"))),
+        },
         ManifestResult::Unavailable(why) => Err(Unread(format!("{path}: {}", why.0))),
     }
 }
@@ -67,7 +85,8 @@ pub fn find_with(
 ) -> Result<Found, Unread> {
     let root_dir = dir_of(lock_path).to_string();
     let root_path = manifest_path(&root_dir)?;
-    let text = read_merged(cx, &root_path)?;
+    let kept = RefCell::new(Vec::new());
+    let text = read_merged(cx, &root_path, &kept)?;
     let root = parse(&text, &root_dir, None)?;
     let ws = root.workspace.clone();
 
@@ -84,7 +103,7 @@ pub fn find_with(
             .map(|e| join(&ws.dir, e))
             .collect::<Result<_, _>>()?;
         for member in &ws.members {
-            members_of(member, ws, &excluded, wanted, cx, &mut loaded)?;
+            members_of(member, ws, &excluded, wanted, cx, &kept, &mut loaded)?;
         }
     }
 
@@ -102,7 +121,7 @@ pub fn find_with(
             continue;
         }
         let path = manifest_path(&dir)?;
-        let text = read_merged(cx, &path)?;
+        let text = read_merged(cx, &path, &kept)?;
         let m = parse(&text, &dir, ws.as_ref())?;
         queue.extend(path_targets(std::iter::once(&m)));
         loaded.insert(dir, m);
@@ -142,6 +161,7 @@ pub fn find_with(
         root_dir,
         root,
         packages,
+        kept_both: kept.into_inner(),
         superseded: gone,
     })
 }
@@ -162,6 +182,7 @@ fn members_of(
     excluded: &BTreeSet<String>,
     wanted: &BTreeSet<Id>,
     cx: &Context<'_>,
+    kept: &RefCell<Vec<String>>,
     loaded: &mut BTreeMap<String, Manifest>,
 ) -> Result<(), Unread> {
     if !has_glob(member) {
@@ -170,7 +191,7 @@ fn members_of(
             return Ok(());
         }
         let path = manifest_path(&dir)?;
-        let text = read_merged(cx, &path)?;
+        let text = read_merged(cx, &path, kept)?;
         loaded.insert(dir.clone(), parse(&text, &dir, Some(ws))?);
         return Ok(());
     }
@@ -197,6 +218,15 @@ fn members_of(
             }
             ManifestResult::Conflict => {
                 return Err(Unread(format!("the text merge of {path} conflicts")));
+            }
+            ManifestResult::Conflicted(text) => {
+                let text = union::resolve(&text)
+                    .map_err(|why| Unread(format!("the text merge of {path} conflicts: {why}")))?;
+                let m = parse(&text, &dir, Some(ws))?;
+                if m.name.as_deref() == Some(name) {
+                    kept.borrow_mut().push(path.clone());
+                    loaded.insert(dir, m);
+                }
             }
             ManifestResult::Unavailable(_) => {}
         }

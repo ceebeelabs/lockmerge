@@ -380,6 +380,11 @@ pub fn validate(draft: &Draft<Id, Package>, sh: &Shared, cx: &Context<'_>) -> Fi
         }
     }
 
+    // M4: a manifest the rules read had a text conflict read as two insertions.
+    if !sh.kept_both().is_empty() {
+        f.proofs.push(cx.proof(codes::M4, Vec::new()));
+    }
+
     // V2: every edge resolves to a package of the merged set.
     let dangling: Vec<Refusal> = items
         .iter()

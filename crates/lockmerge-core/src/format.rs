@@ -31,6 +31,10 @@ pub enum ManifestResult {
     Merged(Vec<u8>),
     Unavailable(Why),
     Conflict,
+    /// The text merge conflicts, and this is its `git merge-file -p --diff3
+    /// -L ours -L base -L theirs` output, markers included. A format may read
+    /// the hunks (ADR 0019); one that does not treats it as [`Self::Conflict`].
+    Conflicted(Vec<u8>),
 }
 
 /// Merged manifests, from git objects. Implemented by `lockmerge-env`, and by
