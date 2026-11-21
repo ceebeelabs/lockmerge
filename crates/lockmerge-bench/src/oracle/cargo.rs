@@ -465,7 +465,28 @@ impl Oracle for CargoOracle {
                 if !r.contains(' ') {
                     return Err(format!("replace `{r}` has no version"));
                 }
-                referenced.insert(resolve(r, &lock.packages)?);
+                // Without a source, Cargo prefers the path package (the one
+                // without a source) among the candidates of that name and
+                // version; otherwise the target must be unique.
+                let target = if r.contains(" (") {
+                    resolve(r, &lock.packages)?
+                } else {
+                    let (name, version) = r.split_once(' ').unwrap_or((r, ""));
+                    let paths: Vec<usize> = lock
+                        .packages
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, q)| {
+                            q.name == name && q.version == version && q.source.is_none()
+                        })
+                        .map(|(i, _)| i)
+                        .collect();
+                    match paths.as_slice() {
+                        [one] => *one,
+                        _ => resolve(r, &lock.packages)?,
+                    }
+                };
+                referenced.insert(target);
             }
         }
         for (i, p) in lock.packages.iter().enumerate() {
@@ -641,17 +662,20 @@ mod tests {
         let path = "[[package]]\nname = \"bar\"\nversion = \"0.1.0\"\n\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"bar 0.1.0\"\n";
         let with_path = format!("{GOOD}\n{path}");
         CargoOracle.valid(&lock(4, &with_path)).unwrap();
-        // Neighbor: the same text is ambiguous when two packages are named
-        // `dep 1.0.0` (one registry, one path).
-        let dup = format!(
-            "{GOOD}\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"dep 1.0.0\"\n"
+        // Registry package replaced by a path package of the same name and
+        // version: the sourceless target means the path one.
+        let reg_to_path = format!(
+            "[[package]]\nname = \"app\"\nversion = \"0.1.0\"\ndependencies = [\n \"dep 1.0.0 ({SRC})\",\n]\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\nsource = \"{SRC}\"\nchecksum = \"aa\"\nreplace = \"dep 1.0.0\"\n"
         );
-        assert!(
-            CargoOracle
-                .valid(&lock(4, &dup))
-                .unwrap_err()
-                .contains("ambiguous")
+        CargoOracle.valid(&lock(4, &reg_to_path)).unwrap();
+        // Neighbor: with no path package, `dep 1.0.0` names two registry
+        // packages and is genuinely ambiguous.
+        let two_registries = reg_to_path.replace(
+            "name = \"dep\"\nversion = \"1.0.0\"\n\n[[package]]",
+            "name = \"dep\"\nversion = \"1.0.0\"\nsource = \"registry+other\"\nchecksum = \"bb\"\n\n[[package]]",
         );
+        let err = CargoOracle.valid(&lock(4, &two_registries)).unwrap_err();
+        assert!(err.contains("ambiguous"), "{err}");
         // A bare name is not a replacement id.
         let bare = format!(
             "{GOOD}\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"dep\"\n"
