@@ -3,7 +3,7 @@
 //!
 //! Only what the rules need is read, and every form this module does not read
 //! exactly is [`Unread`], never skipped: an unknown key in a dependency, a
-//! `[patch]` or `[replace]` table, a dependency that inherits from the
+//! `[replace]` table, a `[patch]` entry that is not read exactly (ADR 0018), a dependency that inherits from the
 //! workspace with extra keys, a path that leaves the repository. The callers
 //! turn `Unread` into a refusal (R14).
 
@@ -90,7 +90,17 @@ pub struct Manifest {
     pub links: Option<String>,
     /// Present for the workspace root.
     pub workspace: Option<Workspace>,
+    /// The `[patch]` tables of the root manifest, normalized (ADR 0018): by
+    /// source as written, then by the key each entry is written under.
+    pub patch: Patch,
 }
+
+/// One `[patch]` entry: every key it has, with a canonical value text. The
+/// `path` is normalized to a repository path and `features` is sorted.
+pub type PatchEntry = BTreeMap<String, String>;
+
+/// `[patch.<source>]` tables: source as written, then entry key.
+pub type Patch = BTreeMap<String, BTreeMap<String, PatchEntry>>;
 
 /// A dependency as written, before inheritance.
 #[derive(Clone, Debug, Default)]
@@ -321,6 +331,90 @@ fn workspace_table(t: &dyn TableLike, dir: &str) -> Result<Workspace, Unread> {
     Ok(ws)
 }
 
+/// The keys a `[patch]` entry may have: those of a dependency declaration that
+/// name a source or select what is built.
+const PATCH_KEYS: [&str; 11] = [
+    "version",
+    "path",
+    "git",
+    "branch",
+    "tag",
+    "rev",
+    "package",
+    "registry",
+    "features",
+    "default-features",
+    "optional",
+];
+
+/// Reads the `[patch]` table exactly: every source's table of entries, each
+/// entry a table with only the keys of [`PATCH_KEYS`], values of the expected
+/// types, and a source (`path`, `git` or `registry`). Anything else is unread.
+fn patch_tables(item: &Item, dir: &str) -> Result<Patch, Unread> {
+    let Some(sources) = item.as_table_like() else {
+        return unread("patch is not a table");
+    };
+    let mut out = Patch::new();
+    for (source, entries) in sources.iter() {
+        let Some(entries) = entries.as_table_like() else {
+            return unread(format!("patch source {source} is not a table"));
+        };
+        let mut table = BTreeMap::new();
+        for (name, entry) in entries.iter() {
+            let what = format!("patch {source} entry {name}");
+            let Some(t) = entry.as_table_like() else {
+                return unread(format!("{what} is not a table"));
+            };
+            let mut canon = PatchEntry::new();
+            for (k, v) in t.iter() {
+                if !PATCH_KEYS.contains(&k) {
+                    return unread(format!("{what}, key {k} is not read"));
+                }
+                let text = match k {
+                    "path" => format!("s:{}", join(dir, &string(v, &what)?)?),
+                    "features" => {
+                        let mut f = string_list(v, &what)?;
+                        f.sort();
+                        f.dedup();
+                        format!("l:{}", f.join(","))
+                    }
+                    "default-features" | "optional" => match v.as_bool() {
+                        Some(b) => format!("b:{b}"),
+                        None => return unread(format!("{what}, key {k} is not a boolean")),
+                    },
+                    _ => format!("s:{}", string(v, &what)?),
+                };
+                canon.insert(k.to_string(), text);
+            }
+            let sources = ["path", "git", "registry"]
+                .iter()
+                .filter(|k| canon.contains_key(**k))
+                .count();
+            if sources == 0 || (canon.contains_key("path") && canon.contains_key("git")) {
+                return unread(format!("{what} does not name exactly one source"));
+            }
+            if table.insert(name.to_string(), canon).is_some() {
+                return unread(format!("{what} is declared twice"));
+            }
+        }
+        out.insert(source.to_string(), table);
+    }
+    Ok(out)
+}
+
+impl Manifest {
+    /// The repository directories of the `path` entries of `[patch]`.
+    pub fn patch_paths(&self) -> Vec<String> {
+        self.patch
+            .values()
+            .flat_map(|t| t.values())
+            .filter_map(|e| e.get("path"))
+            .filter_map(|p| p.strip_prefix("s:"))
+            .map(str::to_string)
+            .collect()
+    }
+}
+
 /// A field of `[package]` that is a string or `{ workspace = true }`.
 fn inheritable(
     p: &dyn TableLike,
@@ -354,11 +448,18 @@ fn inheritable(
 pub fn parse(text: &str, dir: &str, root_ws: Option<&Workspace>) -> Result<Manifest, Unread> {
     let doc = Document::parse(text).map_err(|e| Unread(format!("not TOML: {}", e.message())))?;
     let root = doc.as_table();
-    for key in ["patch", "replace", "dev_dependencies", "build_dependencies"] {
+    for key in ["replace", "dev_dependencies", "build_dependencies"] {
         if root.contains_key(key) {
             return unread(format!("the table `{key}` is not read"));
         }
     }
+    // Only the workspace root's `[patch]` applies. One in a member manifest
+    // is not read.
+    let patch = match root.get("patch") {
+        None => Patch::new(),
+        Some(_) if root_ws.is_some() => return unread("a member manifest has a [patch] table"),
+        Some(item) => patch_tables(item, dir)?,
+    };
     let own_ws = match root.get("workspace") {
         None => None,
         Some(item) => match item.as_table_like() {
@@ -372,7 +473,10 @@ pub fn parse(text: &str, dir: &str, root_ws: Option<&Workspace>) -> Result<Manif
         },
     };
     let ws = own_ws.as_ref().or(root_ws);
-    let mut m = Manifest::default();
+    let mut m = Manifest {
+        patch,
+        ..Manifest::default()
+    };
     if let Some(item) = root.get("package") {
         let Some(p) = item.as_table_like() else {
             return unread("package is not a table");

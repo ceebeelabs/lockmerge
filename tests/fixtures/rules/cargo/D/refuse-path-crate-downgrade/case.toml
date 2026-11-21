@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, lib and tool; checksums are synthetic. Ours moves the path package lib from 0.2.0 down to 0.1.0, which its manifest declares; theirs drops tool's dependency on leaf. The no-downgrade rule still refuses."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.DOWNGRADE"

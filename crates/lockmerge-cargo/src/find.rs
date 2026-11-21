@@ -30,6 +30,10 @@ pub struct Found {
     /// Manifests whose text merge conflicted and was read as two insertions
     /// (ADR 0019).
     pub kept_both: Vec<String>,
+    /// Path packages of the lockfiles that no manifest declares any more
+    /// because a branch moved the package to another version (ADR 0018): the
+    /// merged manifest of that directory declares the new version.
+    pub superseded: BTreeSet<Id>,
 }
 
 fn manifest_path(dir: &str) -> Result<String, Unread> {
@@ -68,6 +72,17 @@ fn read_merged(
 /// packages of the three lockfiles). `lock_path` is the repository path of the
 /// lockfile.
 pub fn find(wanted: &BTreeSet<Id>, lock_path: &str, cx: &Context<'_>) -> Result<Found, Unread> {
+    find_with(wanted, &BTreeSet::new(), lock_path, cx)
+}
+
+/// [`find`], where each id of `superseded` may have no manifest: a branch
+/// moved that path package to another version, which `wanted` holds too.
+pub fn find_with(
+    wanted: &BTreeSet<Id>,
+    superseded: &BTreeSet<Id>,
+    lock_path: &str,
+    cx: &Context<'_>,
+) -> Result<Found, Unread> {
     let root_dir = dir_of(lock_path).to_string();
     let root_path = manifest_path(&root_dir)?;
     let kept = RefCell::new(Vec::new());
@@ -99,6 +114,8 @@ pub fn find(wanted: &BTreeSet<Id>, lock_path: &str, cx: &Context<'_>) -> Result<
         queue.extend(ws.dep_paths()?);
     }
     queue.extend(path_targets(loaded.values()));
+    // The packages a `[patch]` entry points at are part of the graph.
+    queue.extend(root.patch_paths());
     while let Some(dir) = queue.pop() {
         if loaded.contains_key(&dir) {
             continue;
@@ -128,10 +145,14 @@ pub fn find(wanted: &BTreeSet<Id>, lock_path: &str, cx: &Context<'_>) -> Result<
         }
     }
     let mut packages = BTreeMap::new();
+    let mut gone = BTreeSet::new();
     for id in wanted {
         match by_id.remove(id) {
             Some(found) => {
                 packages.insert(id.clone(), found);
+            }
+            None if superseded.contains(id) => {
+                gone.insert(id.clone());
             }
             None => return Err(Unread(format!("no manifest for the path package {id}"))),
         }
@@ -141,6 +162,7 @@ pub fn find(wanted: &BTreeSet<Id>, lock_path: &str, cx: &Context<'_>) -> Result<
         root,
         packages,
         kept_both: kept.into_inner(),
+        superseded: gone,
     })
 }
 
@@ -207,6 +229,32 @@ fn members_of(
                 }
             }
             ManifestResult::Unavailable(_) => {}
+        }
+    }
+    Ok(())
+}
+
+/// ADR 0018: the manifest rules run only if the merged `[patch]` equals the
+/// one in ours' root manifest and in theirs', so both lockfiles were resolved
+/// under the patches the merge keeps.
+pub fn check_patch(found: &Found, cx: &Context<'_>) -> Result<(), Unread> {
+    let root_path = manifest_path(&found.root_dir)?;
+    for role in [Role::Ours, Role::Theirs] {
+        let bytes = cx
+            .manifests
+            .side(role, &root_path)
+            .map_err(|why| Unread(format!("{root_path}: {}", why.0)))?;
+        let text =
+            String::from_utf8(bytes).map_err(|_| Unread(format!("{root_path} is not UTF-8")))?;
+        let own = parse(&text, &found.root_dir, None)?;
+        if own.patch != found.root.patch {
+            return Err(Unread(format!(
+                "the [patch] of the merged manifest differs from the one in {}'s",
+                match role {
+                    Role::Ours => "ours",
+                    _ => "theirs",
+                }
+            )));
         }
     }
     Ok(())

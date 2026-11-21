@@ -124,7 +124,7 @@ adds such a dependency to another member); and a declaration the side has,
 equal to base's, that the merged manifest lacks (the other branch removed it,
 which only withdraws a request).
 
-**D. No downgrades.** A registry or git crate whose chosen version is lower than
+**D. No downgrades.** A registry, git or path crate whose chosen version is lower than
 its version in base is refused. A lower version can lack a feature the merged
 manifest enables on the other side (base rand 0.8.4 with `min_const_gen` enabled
 by ours, theirs alone downgrading to 0.8.3, which lacks it), and the lockfile
@@ -172,6 +172,14 @@ satisfies. If no path package has an edge into it, B1 holds trivially. If a
 path package has such an edge and manifests are unavailable: refuse (R14). The
 other side may have changed a manifest only, which the lockfile does not show.
 Pure additions and removals are not affected.
+A one-sided move of a **path** package (a branch lacks base's id and has one new
+id of the same name) is taken under B1 as well, with D, F and C ([ADR 0018](../adr/0018-read-patch-exactly-and-accept-one-sided-path-crate-version-moves.md)):
+the merged manifest of the package declares exactly the new version (after
+`version.workspace = true`) and none declares the old one; the other branch left
+the entry as in base; the new entry keeps every dependency name; and every path
+package with an edge into it declares it as a path dependency at its directory,
+with a `version` requirement, if any, that the new version satisfies. A move of a
+**git** crate is refused (R14): its version comes from another repository.
 Accept: ours bumps serde 1.0.100 to 1.0.101; theirs adds `anyhow` to another
 member; `app` still says `serde = "1"`. Refuse: same, but theirs pins `app` to
 `serde = "=1.0.100"` (manifest-only change): 1.0.101 fails the requirement.
@@ -219,7 +227,7 @@ Applies to a path package P (no source) whose resolved edges differ in ours and
 theirs from base and from each other. Accept only if all hold:
 
 - a. The merged edge set E is: base edges, plus edges each side added, minus edges each side removed, with the same-name target in ours versus theirs resolved only by M1. If both sides changed the target of the same name differently without M1: refuse.
-- b. P is found in the merged manifest (4.5), and its dependency declarations are fully readable: names (using `package =` when renamed), requirement, `path`, `git` and `workspace = true` inheritance resolved against `[workspace.dependencies]` in the root manifest. Any form not read (unknown key, `[patch]` or `[replace]` in any workspace manifest, a dependency in several tables with different requirements): refuse.
+- b. P is found in the merged manifest (4.5), and its dependency declarations are fully readable: names (using `package =` when renamed), requirement, `path`, `git` and `workspace = true` inheritance resolved against `[workspace.dependencies]` in the root manifest. Any form not read (unknown key, `[replace]` in any workspace manifest, a `[patch]` that is not read exactly or differs among the merged manifest, ours and theirs (4.5), a dependency in several tables with different requirements): refuse.
 - c. The set of distinct crate names in E equals the set declared in the manifest (all kinds: normal, dev, build, target-specific). One name with several resolved versions: refuse.
 - d. Each registry edge's version satisfies the declared requirement. Each path edge points to a path package whose manifest path matches the declared `path`, and, when the declaration also has a `version` requirement, whose version (from the merged manifest of that package) satisfies it. Git edges are accepted only if identical in base, ours and theirs.
 - e. Every edge target exists in the merged set.
@@ -385,9 +393,17 @@ Implementation (`lockmerge-cargo`, #37). The format reads manifests through
 entry is read as a literal path or as `<directory>/*`, where each candidate is
 the directory named like a path package of the lockfiles (its manifest must
 hold that package name); `exclude` must be literal. Any other glob, an
-unlisted member, a `[patch]` or `[replace]` table, a dependency key not read
+unlisted member, a `[replace]` table, a dependency key not read
 (`registry`, `artifact`, `default_features`, ...) and a path that leaves the
-repository are unread: R14. A member removed on one side has no merged
+repository are unread: R14.
+
+The root manifest's `[patch.<source>]` tables are read exactly ([ADR 0018](../adr/0018-read-patch-exactly-and-accept-one-sided-path-crate-version-moves.md)):
+each entry has only the keys `version`, `path`, `git`, `branch`, `tag`, `rev`,
+`package`, `registry`, `features`, `default-features` and `optional`, and one
+source; paths are normalized and the manifests they point at are found like path
+dependencies. The manifest rules run only if the merged `[patch]` equals ours'
+and theirs' (same sources, crates and declarations); otherwise R14. A `[patch]` in
+a member manifest, an unknown key or a wrong type is unread: R14. A member removed on one side has no merged
 manifest, so the manifest rules refuse for that file (R14). Rules that compare
 against what a side was resolved with (M1 e, C) read that side's own manifest
 through `Manifests::side`, which the driver answers from the side's commit.

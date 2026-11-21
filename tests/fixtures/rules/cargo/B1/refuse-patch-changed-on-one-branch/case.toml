@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, cli and tool; app depends on itoa, which the root manifest patches with a path; checksums are synthetic. Ours moves serde from 1.0.100 to 1.0.101 and theirs drops tool's dependency on leaf. Ours also adds a version key (1.0.0) to the patch entry, which does not change the lockfile; theirs keeps the entry as in base. The merged [patch] equals ours' and differs from theirs'."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

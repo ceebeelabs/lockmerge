@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, lib and tool; itoa 0.4.8 and 1.0.0 are both in every lockfile; checksums are synthetic. Ours moves the path package lib from 0.1.0 to 0.2.0 and its itoa edge from 0.4.8 to 1.0.0 under itoa = '>=0.4'; theirs pins lib's requirement to itoa = '0.4' and drops tool's dependency on leaf. The merged manifest of lib declares 0.2.0 and the 0.4 pin, which the edge to itoa 1.0.0 violates, so the move is refused."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"

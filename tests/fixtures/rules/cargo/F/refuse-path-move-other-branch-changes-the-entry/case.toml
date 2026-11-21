@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app, lib and tool; checksums are synthetic. Ours moves the path package lib from 0.1.0 to 0.2.0; theirs gives lib a dependency on serde and drops tool's dependency on leaf, so the entry of lib 0.1.0 on the other branch is not as in base."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.FEATURES"

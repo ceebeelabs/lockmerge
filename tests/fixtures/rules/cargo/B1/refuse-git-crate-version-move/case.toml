@@ -1,0 +1,4 @@
+source = "Hand-built reduction: a workspace of members app and tool with a git dependency g; the commit ids are synthetic. Ours updates g from 0.1.0 at one commit to 0.2.0 at another; theirs drops tool's dependency on leaf. The version of a git crate comes from another repository at the locked commit, which lockmerge cannot read, so the move is refused although the manifests would allow it."
+path = "Cargo.lock"
+outcome = "refused"
+code = "cargo.R14"
