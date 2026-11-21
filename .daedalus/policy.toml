@@ -33,6 +33,8 @@ profiles = ["rust"]
 # this context size or after this many review rounds.
 fresh_session_above_tokens = 120_000
 fresh_session_after_rounds = 3
+# Start each worktree from a warm clone of main's target/ instead of an empty one.
+warm_build = "default"
 
 # Share the machine's cores between workers building at once.
 [workers.env]
