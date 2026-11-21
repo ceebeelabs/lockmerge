@@ -26,3 +26,561 @@ expected = ["cargo add humantime@=2.4.0", "cargo add unicode-segmentation@=1.13.
 "manifests/theirs/Cargo.toml" = "dd680e0818d5ab302a7368c6e799c0a1466e029c9c72220906a5868ee6f5b4db"
 "ours" = "bdc168a322a04323bf12f6820c34e6e68c881665a19e994c80e4fbc714f222e8"
 "theirs" = "1dbb8748910193d07975f2688ab6d9cee296213ee8f036a9f3f591ee8c1e54d2"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ah/o-/aho-corasick" = "b7ecc5048cafcd0c353e1c415fa8004d3245128a8556fb408d387d79f339bedf"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstream" = "4ce9357a0b4e65f350d95733d9fa58aeef62f9490857b775c51ad9dacd8c27e4"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle" = "0c3842668ff8b29247696ffa315a85ca5f93ab624fa697e138145b626ae6fcca"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle-parse" = "941dea47e3796a5d2105e802914749c93d3ed30aad4c33138a35a5dc8dc43b11"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle-query" = "a2baca9ca9313817a09c67bd6651e5ee342577c8515107a7fd17a73784fe8c17"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle-wincon" = "184dc28f7a67bc60bc796aa5f280113887a5b114e08bfe07f89f8d68d2b9db70"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/an/yh/anyhow" = "66b9370fafa660320dec1ebee2e21b645066ccd76b9a68fb0f871789ffed33e7"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ar/gm/argmax" = "83af64be4073a0185a983d45e476ba5d9f4d669a4bfe5b33b6df15b6e3d13992"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/bi/tf/bitflags" = "d08aeeb7fcd4d40deeb195334cdcdc24414ad3407ff39857ca58005f51324024"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/bl/oc/block2" = "e35817c0ce90957d157c7f8e9c3caf2dfafa803f72b8a7235f9cdb74eed33e55"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/bs/tr/bstr" = "c00df095aa1647ac28e6fb1ad499bf6e30aecb816b93f6dd359c754c4f314a7a"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/2/cc" = "cf9759a95d35c09ee9db301e4be843c5deacc0de334fc975a490fd3a2e7ffc71"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cf/g-/cfg-if" = "c3f4df11ecc7920bc31b0940289abb9707d42f37d9e00bf020831837b9d7e334"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cf/g_/cfg_aliases" = "dafdc256342dffe3af2377990a935218e1749915cd67d276a22ffe405f2ddfe2"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap" = "fd6ded5336177a7ca22188885eb1ebff77d007fbefdbb32ce78bdff862b70d05"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_builder" = "939450b8b1e132f8697608b137dabddb87a571956d940f854175adc91059b4ac"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_complete" = "c9d50af15e2278e87a8e33a6dfa973f123f305416f82b37868025dbb617c38fe"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_derive" = "0b06d073de42fc34ff337c54294a4663780623ec336062cbf29000f364f6d1f9"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_lex" = "9f70135c4a379d4052518150a1901a2c89ba3eb36a0ab1e5cfc151939ca2dbed"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/co/lo/colorchoice" = "439949ae8332ca68bbceaea0bc85ae78f99a06f35c52596f3388740fcab2202d"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-channel" = "0a3315288f7cd7d665f92bb850c7b6ec9716b637190601e19210503908d82120"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-deque" = "5eba2b1b32342c3ee5014b7801ffc103b36decdc8921f342c08c4134772b4bb1"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-epoch" = "37767455100e5c79ea156f893d964d3c2f97819cb9607cdc73007c257e889a58"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-utils" = "27343c309c609217b1a2b2574afb26ff203f0675b78f4479e209adf0d8cc2398"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ct/rl/ctrlc" = "fa6a182128de81b959980c6a7cb3a3081ab5e4dde4f7fbc4ae7b701e1d48bdf3"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/de/fm/defmt" = "c8e37662ac9eff596cf87c6d35a783a19ec5661a54b7c744ae188f37a5ba23b8"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/de/fm/defmt-macros" = "4c195955f900bd1b7e3884257fbad8f9a39d9fdb03da3bc37c1f216fa63e4882"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/de/fm/defmt-parser" = "0975bee8929ea5a5f344877d0880ff7b06d4b67f41962011dec70896fc840f59"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/di/ff/diff" = "bede5119f4a6b62a250587c0b53413cd44032989bb1a9d874cf4b3cd659f6ad2"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/di/sp/dispatch2" = "4c6e75b54a82bce568d8fe94328cdeae1ea64b3295ea36c97d53988bd9d37a4f"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/er/rn/errno" = "b79a3b0c4142f0781e437b4b64fa9220673df557d328333885053b843e2a81b2"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/et/ce/etcetera" = "a1169f517e8e958ef8262fa44bd91af9afeff3696d399c6281b71e7d2ee8d73e"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/fa/cc/faccess" = "a7504edc6bb09e42d927f3ad683eb4594c6beda94fd75e0acdb36eb6fdb54f46"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/fa/st/fastrand" = "9acfc4909789a47ee37379f5eadf5ed16cfabe82493fd5e0f57c838ec7c7f3f7"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/fi/le/filetime" = "a6a8b61b83c8997a5e73da15c9e26eda89d1bef74603020cb61603758b128d7d"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/fi/nd/find-msvc-tools" = "ec0c2eb563fb1f8dc0ab1a014ee90347097bbd4f7a95abfc30d6280b973facab"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ge/tr/getrandom" = "4b7615f2ba61bec409256e36626e8f6776416e2c9155f0fbd5198e40556160b3"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/gl/ob/globset" = "d10a37dd90b7ad6f3017f5af9cd83e97ccc2da081e8494fe473ed6e48554dd60"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/he/ck/heck" = "41ba20ba29693cfb21aa0f9996102add3b08c44ce6b5cf598368e6769baa7651"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/hu/ma/humantime" = "a7bb871ec846c991792fffc004d19b821034271ad54dd7384585b81c485d00da"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ig/no/ignore" = "68a4111f88be459a764bbb11499edb3fb779c75ab75ec5a0f8cc0e22f52b82ed"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/is/_t/is_terminal_polyfill" = "fabc6331e47071b4af37c810e8a54d8009018aa7edbb18b0cefd4f5c938200d3"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff" = "eac590287d58b4b9e8bc0c1e8594c096ccd62b45b09f5e10de1334e5514c0fae"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-core" = "c884084cbfd607e0f2a1da8bce2464827bbadbedfedb5b538add801b8822d911"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-static" = "1c4e0540559bf2f6aee8603138ea4db133acbdb93978a7f677c41d8ac22b2fbe"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-tzdb" = "1963937bc0557751cee53f6973041a38830e94c69255614364e35cc51c8ab4de"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-tzdb-platform" = "5238c5515b40fe4708f63f6a6d45c04e5bbe4ae61e00842639cebc8cd78e4163"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/li/bc/libc" = "2c29751442e43d2e922a509848addf68f68689e48212cc29236fd86f5251cf35"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/li/nu/linux-raw-sys" = "1280bf1c54b04038707572f7cea021893fcaeee08d719884752892625b0a4dfa"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/3/l/log" = "4c3a506761bb4d563f9739256eae870c50a7e283822f5c7a799cb47f788f2e48"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ls/co/lscolors" = "985e641bc8f5d609269f7d87c3c03645749c72b7a02039904be7bcd8a4732dc4"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/me/mc/memchr" = "ee5675d84be16b64b2e17292b2a191915ec8ccb6412c6511f076e55c301e2a2e"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/3/n/nix" = "42c6b924777019615bb0e21442ef070d93ff6dd40b5bbb6dd65159083365446d"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/no/rm/normpath" = "356e6e3792d7610a3b13ad59352ae529e807ac222ec8fe05937abd6b786162a1"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/nu/-a/nu-ansi-term" = "db1cea1acf2b052c296c20d3008f314a3adca175f188e64cb2d4280d8d3b396d"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ob/jc/objc2" = "f7a16055fe1ca9e2c84be709205b1ab37e882d1d08f4b86da9793b670e6d3c26"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ob/jc/objc2-encode" = "a8d1f67ecf75de7a24a00d888d66ec400e37adc82b92d165490a83260308ff5d"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/on/ce/once_cell" = "0ed42519ce677fa844d832ccac0120c93e02295ce7cb5c8150e292f17183fd23"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/on/ce/once_cell_polyfill" = "479e969d23f9fe40b8780d42b3c01f688b349eb089ac941ac02f5595ced31924"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/po/rt/portable-atomic" = "ef77eb547ec43779075c14bb9f909dc08006c91bac6abf97d7bb75c0d7b91d96"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/po/rt/portable-atomic-util" = "f5458dcc8dcf3b11fb119db7131948f4eb56020afb1ff3871418cf018bf8333d"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/pr/oc/proc-macro2" = "c7cfdba464e13733d4cf06b7ea274a70d319619644f47a0e8a244f8cec8e2d59"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/qu/ot/quote" = "faba9f2bd772d0fad64423e9573dceb48b5bbed9887477b16d3fdd4fda949813"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/r-/ef/r-efi" = "da6cb398611ca4882c4d2f4fa585ae213111553074134e1f6fddc873016b22df"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/re/ge/regex" = "7f4aaec8b260c17920b0e1a2791982d1ede7e759ca2c873dda90101948cb4035"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/re/ge/regex-automata" = "4193cc65d56227654760ba5b8702df981af77bf9b4c32fbb60ab4b8d1aad36cb"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/re/ge/regex-syntax" = "fa56d83a1375da41e3a50957b40cb7ac4807ffebd057aa0cf49d50cf11ce1a9f"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ru/st/rustix" = "d473e358f286b35d9fb513457ae42f278331b699a4ffd6256745da301c5252a4"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/sa/me/same-file" = "d50821675d9d214900dc4fb33cb077d78ae784f15c629e471309655f66590c71"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/se/rd/serde_core" = "16ceb210f688d9953efcc5b214ba52a6a9fc6f917171f12ad6460c3278100f29"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/se/rd/serde_derive" = "06872419fa5ad18603dcb7b00ec19917267e05874138456209a72b5e0e5d2c0a"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/sh/le/shlex" = "54238c86b4a25e5bb04a65484e065550958d6154fdb087c36cea6b7306e7effd"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/st/rs/strsim" = "734c8e0d0206a83f0b1aec0b171b14744b7e28144618eec2d6627d937201490e"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/3/s/syn" = "54eaf744743bcde09151499223622ddcee6cca7bb8fa6f8fa187f4eadbe2cfaf"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/te/mp/tempfile" = "a1f3546f1533f8ca34470174d7778225894abbef6dcd498ae8438a104ba62e64"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/te/rm/terminal_size" = "f3cc11022e7af6a3c4a3a9d240f42c7279196894ab563ef80c004e59212c9123"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/te/st/test-case" = "7cc80249776d2e2ddb71dde39937b3bb324d43cf1b4b7004489406f510586d7b"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/te/st/test-case-core" = "e9550151ece0e809e00424cc6aca61fdc36f748f24aca2a60e58da54305520f5"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/te/st/test-case-macros" = "83349d35857c848fd51904222d47e64d0607033687558ed4885da86163caba37"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/th/is/thiserror" = "1aaa0a0491b5e0e03cc78a586607791eb86be4cf4eeb11d3df2ed9e69a20bbe5"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/th/is/thiserror-impl" = "b633a0ce40002666895bed73bb63fc12edf02c58eb8650fe1785fa3cfd181445"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ti/kv/tikv-jemalloc-sys" = "24f244930fc9b45029b524f1d2b93147ad65e445a4126f1d3e89dce95c2479c7"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ti/kv/tikv-jemallocator" = "9bc0c1b3c49f720023985d1c187b2e6a999118e4b19f63e9ac7349a0fe12b990"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/un/ic/unicode-ident" = "ff118eb395bd20feaddce13d375fef79d4a07bbb91d7ee33c3ff01d5685911b2"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/un/ic/unicode-segmentation" = "fa629d4dcb73bdf84d85adf61aa71504df62f781bfcd66e22565cebcc297539c"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/ut/f8/utf8parse" = "61dafc0d34e3ac30ba73042de163eb09f069f15255e555181bf7286ebecdffde"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wa/lk/walkdir" = "feb21fae8ad88b4bdf2001b1441b0de9356dcd9f077efc42fd476d72f2707419"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi" = "d98e088a7397b7532ddfd243179d9785a8d2ad3961693f72497ddbea86de948c"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi-i686-pc-windows-gnu" = "73f4b28ad8a545de1051d2080772372143b131675e9a9983dd0751ea82bc0f5a"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi-util" = "4ffe3a143226c91d8d474dcc56fde786f930bcee2c12cc189df7a3e844bb0120"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi-x86_64-pc-windows-gnu" = "a45cbec4640051ed55c975953a838a2305082528d3aa5144d9037442ed6c94b4"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wi/nd/windows-link" = "82b74d73a5bf69d812853c7e94e3800d9b4e0e65ad34138ca94634b4615ec768"
+"index/index.crates.io-1949cf8c6b5b557f/.cache/wi/nd/windows-sys" = "7918333ac377140c4ed1e59352e96782921f8bab43e69b73c38711e0c1f1afd0"
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ah/o-/aho-corasick"
+original_sha256 = "4156441537976dd99ca731553d93c89db304ba7bc2213fbbe058ba93ab698619"
+versions = ["1.1.5"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstream"
+original_sha256 = "49c75f6a5a3fc6b77e2d1b57daa8125b499597e8d66e313d2c927f4cb9bf9ca8"
+versions = ["1.0.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle"
+original_sha256 = "83b622607e1b5283246c1b27d28fd94c1c77d28d0fd3bfe044c10091be5d4700"
+versions = ["1.0.14"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle-parse"
+original_sha256 = "36cdfc38608ce7ab89503d55402a6a5af0718b3a1d201557313c0505d1da9d6b"
+versions = ["1.0.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle-query"
+original_sha256 = "d16554103965530fdc7db4c5db57b95d184a481fc5a86f05cbfea50fb15a096d"
+versions = ["1.1.5"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/an/st/anstyle-wincon"
+original_sha256 = "abd426a28c02f8a97de3e281420c3e7046b03aa7c7d68e007f23655fe71b0b97"
+versions = ["3.0.11"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/an/yh/anyhow"
+original_sha256 = "a529c91ec8630f952709743b04c9e375efffad3311b6e8a7b3b8928b9dd3e7f3"
+versions = ["1.0.104"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ar/gm/argmax"
+original_sha256 = "0486299c7e0bda404d34e0c3fca31375606bc91e4cf144766c1fee6ab19634a0"
+versions = ["0.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/bi/tf/bitflags"
+original_sha256 = "6713b703da401faa62e3df0a4a42a7d14a9d777511ac010512a5dd7b3417faaa"
+versions = ["1.3.2", "2.13.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/bl/oc/block2"
+original_sha256 = "40c36d1b3ecf37825268a3fe41115584eac33a5e8752ba0a685acbbb6650de83"
+versions = ["0.6.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/bs/tr/bstr"
+original_sha256 = "49934ef8cc38302f10604099ce3f5ad0e5aafb698f8417093729d72935d2d032"
+versions = ["1.13.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/2/cc"
+original_sha256 = "8db1b1b8736268a18755d508b6750984dee0dc247c0e94cbc6260b5ba2f643d3"
+versions = ["1.10.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cf/g-/cfg-if"
+original_sha256 = "8f6eaea0f7fc5f6848486cbdf55738698871d39e9120c4c1c68fe5c964696d7d"
+versions = ["1.0.5"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cf/g_/cfg_aliases"
+original_sha256 = "af137539718318d2bae93954e99e3f7a1296366362a6678660fee2a604227b29"
+versions = ["0.2.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap"
+original_sha256 = "a7900f04248684c87581160ccd1e2a368a32586d17995d09fc344047277bec34"
+versions = ["4.6.7"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_builder"
+original_sha256 = "364acab4c7ed7e1656b567437a3c418fbca8953006b7a245eb495024e495e2b0"
+versions = ["4.6.7"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_complete"
+original_sha256 = "35e0c3d11a33df2e1c89c4a264190e92c1d62f27981b9db92d93adf852dc8cf9"
+versions = ["4.6.11"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_derive"
+original_sha256 = "5a2dbd6f0f78e7b329e52e01c2f71b795c5d9a898a7b177977087ac0354ce117"
+versions = ["4.6.7"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cl/ap/clap_lex"
+original_sha256 = "b7bbab222bdef6e67e95dd6754d035075aaaba5676734ad90a31342359c170f1"
+versions = ["1.1.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/co/lo/colorchoice"
+original_sha256 = "0e3383a397661d11e2b336f6bfd62a8fa7cafc248b3cdbd73b145fca0add8220"
+versions = ["1.0.5"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-channel"
+original_sha256 = "35a94e630cab316002a24e8af3b01c84d3ad3e4d67e1360b1a9165f18a308b88"
+versions = ["0.5.17"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-deque"
+original_sha256 = "c0e3994654be46f50fe754fd98a205a1c40d6200b8e1c0b556050e6b7a2853fb"
+versions = ["0.8.8"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-epoch"
+original_sha256 = "7d578474866dca8caf7f3c0be05f0a14556550b3df698269e141c98b342f305b"
+versions = ["0.9.21"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/cr/os/crossbeam-utils"
+original_sha256 = "a0170858efabcdc721a46d11f48879dd8e3a9f5e28bf23e57f9168ce47003416"
+versions = ["0.8.23"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ct/rl/ctrlc"
+original_sha256 = "e6f0b6ce5b47077f6e154b9379409220bc27f215a6bef4cf0015c44695c86edf"
+versions = ["3.5.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/de/fm/defmt"
+original_sha256 = "bba790f0337e4417aeb9197e4a0c3039561cd425ccca45ae56bf4a324b896c64"
+versions = ["1.2.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/de/fm/defmt-macros"
+original_sha256 = "f2843fa24c7c074c2b27616bdd56a42153e7e18fbc9fe78219752c2b8f50444c"
+versions = ["1.2.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/de/fm/defmt-parser"
+original_sha256 = "ec04d3ab9e5c357bf28ddd1ccf09402b9d57c11ae86708382dbf2d50407bcdaa"
+versions = ["1.1.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/di/ff/diff"
+original_sha256 = "d9eb34734609e892bf47592e0d7e4c4bf4259d30ed83d89141273190f2321e6d"
+versions = ["0.1.13"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/di/sp/dispatch2"
+original_sha256 = "9fc81f74bf32014b61315f33a9fa8625c3337c2616627b0824e4c107b00b67d2"
+versions = ["0.3.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/er/rn/errno"
+original_sha256 = "55f3edd323e7dab0a5f1d394a6f25461c811005133ce2020946a1f675b567f26"
+versions = ["0.3.14"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/et/ce/etcetera"
+original_sha256 = "3aaf12137ff3b9c4e957091d095cc400b7c347aef2976c151803d9880e08a35c"
+versions = ["0.11.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/fa/cc/faccess"
+original_sha256 = "c3ae2826add9d372747382b8f417f33d789450b3f5d01136eef0d49f12e7dae9"
+versions = ["0.2.4"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/fa/st/fastrand"
+original_sha256 = "bb3497dd4b879758b900190b56912c6cc1995c4b64f701904b44c048912b1505"
+versions = ["2.5.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/fi/le/filetime"
+original_sha256 = "ac4bf7aee076764c7ef4c8102974fbf875bb0a5e6c8d37bdce2624409f5f3262"
+versions = ["0.2.29"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/fi/nd/find-msvc-tools"
+original_sha256 = "a8b216fecf6c0c319f9ccf7d14d397c2a45bedadbc93041c183927da8626d18e"
+versions = ["0.1.15"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ge/tr/getrandom"
+original_sha256 = "ea3ebfe89a8153e02e45194ad58f9fddf29158f70392ed66fec931a14f885192"
+versions = ["0.4.3"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/gl/ob/globset"
+original_sha256 = "76dee1ae579b09614b8a673a93ee9877a0439081cc40990f4f53c6aeb67a01be"
+versions = ["0.4.21"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/he/ck/heck"
+original_sha256 = "e569491216ead0f0c8bb3d72240e07cbc98b7dd3e0407ecac51a5e520882ff19"
+versions = ["0.5.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/hu/ma/humantime"
+original_sha256 = "d6268a0532f2bd4b341c95566c009c2c37570cadccbc9c5ceff3719df6b897bc"
+versions = ["2.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ig/no/ignore"
+original_sha256 = "ccac5db6471d4745bef05d4f96b7c602aa211424a5c02c26d0ac2560c353ea19"
+versions = ["0.4.34"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/is/_t/is_terminal_polyfill"
+original_sha256 = "c4729406d411203c6ebe81ffa14165bf4101a8cfce7f5581f462f8927d470e95"
+versions = ["1.70.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff"
+original_sha256 = "d05fa661ee3179e60aee237bb4b8c800088eb9adfb3983c4e23ce59826179e2e"
+versions = ["0.2.38"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-core"
+original_sha256 = "a1718601e62028f004770d4ce83e54df9e394460f50f0e49f90e88f94a01a5e1"
+versions = ["0.1.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-static"
+original_sha256 = "117fbe049ef05a02b27453b9e66fd4c78ad6aed5dc07b8c32db5d6913e3f6abf"
+versions = ["0.2.38"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-tzdb"
+original_sha256 = "485196c4a2feb45640daa3f00dae73d5066b2d4cec682fe72ae50a72abc36fa6"
+versions = ["0.1.9"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ji/ff/jiff-tzdb-platform"
+original_sha256 = "23dfe1d2ad782c5cc57eb2612858c2d1587ba54cb2330a027144dbeac0f96a75"
+versions = ["0.1.3"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/li/bc/libc"
+original_sha256 = "0c0c0edd0d15a477311bebab5f7b35d68767bb2ebeea274f85404cd2921c498a"
+versions = ["0.2.191"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/li/nu/linux-raw-sys"
+original_sha256 = "e20d72e863f9d5a06f29138ba8505b919eb7127bedb6bee3b4e294328b8cfb5e"
+versions = ["0.12.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/3/l/log"
+original_sha256 = "ea1620c5f114d105646ea1bdda8cbfa5c9aaa05766f81f7dc75aba86ed3b362b"
+versions = ["0.4.34"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ls/co/lscolors"
+original_sha256 = "1679555bfe1ce1df4c843b786b1cd158c4f203cf3986564ce42c108cb711c44e"
+versions = ["0.21.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/me/mc/memchr"
+original_sha256 = "fd6ae4fcce894bf67403c653f73a6fe48bfa1fac66a04e2caec70e1f36343d05"
+versions = ["2.8.3"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/3/n/nix"
+original_sha256 = "d41129181cd8abaa68ac93d8275be10e79852726ffcb2056644231ee794ed184"
+versions = ["0.30.1", "0.31.3"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/no/rm/normpath"
+original_sha256 = "c511cebdeb63e862152dc0103058b50449062274ea991e170592c1651df3c0e4"
+versions = ["1.5.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/nu/-a/nu-ansi-term"
+original_sha256 = "12a9d25ab56384eee8fdb57a52b0c56cae3be890c74a486cd99db014a507b60d"
+versions = ["0.50.3"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ob/jc/objc2"
+original_sha256 = "e502aa0323f9ec1795ce5940a6fa9ae5d383ed4473d182a16386535f51fd9464"
+versions = ["0.6.5"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ob/jc/objc2-encode"
+original_sha256 = "c1f687b2941f2b712e3ebf817e66c6dcf4ac08780b11ae4fa4f8e4c7635ac8ad"
+versions = ["4.1.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/on/ce/once_cell"
+original_sha256 = "482e2ff5884947e2bcaaa63d01cc99d0fb6090cdff0a51ee22869f1362126efe"
+versions = ["1.21.4"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/on/ce/once_cell_polyfill"
+original_sha256 = "b1382cd40e000be3782657a2c4d0ab208fa9c4c2a96c231d864d20d66a6d7f73"
+versions = ["1.70.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/po/rt/portable-atomic"
+original_sha256 = "afdca4f067cc1d867e21725ce0a23b9da2cd4970553621e5e81c948f9982a011"
+versions = ["1.15.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/po/rt/portable-atomic-util"
+original_sha256 = "f1d83eb39a78568c83a9850ba0900a15377fab57ded34853bbc32602f7228a08"
+versions = ["0.2.8"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/pr/oc/proc-macro2"
+original_sha256 = "95228f72462ea6fa119430877d1c7abb7a22346da05473c37ecc12e678174b69"
+versions = ["1.0.107"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/qu/ot/quote"
+original_sha256 = "bf97b4d031ad9a1159e896720b9227fb39947f370b48cb8ded9abd27b1515feb"
+versions = ["1.0.47"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/r-/ef/r-efi"
+original_sha256 = "8dd2e6f342664d9951d2bdf4a942066d63101296a4b8d4cb9b3bdc520eed2c8f"
+versions = ["6.0.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/re/ge/regex"
+original_sha256 = "828206445ae8033b9013758d4fe951008e175a88e012afecf3c2b7a098648625"
+versions = ["1.13.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/re/ge/regex-automata"
+original_sha256 = "a2e7d02e545bcaff65aa1ee13adad24927672a6bb423fda8beedfaadbce59bd0"
+versions = ["0.4.18"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/re/ge/regex-syntax"
+original_sha256 = "a418b671215a6eb058b07db4a18a899fea83a7d021f1c75e0cf69acbf9664ca5"
+versions = ["0.8.11"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ru/st/rustix"
+original_sha256 = "9137126a41483248c64f056fd7a4414e7d30cceb5af9fc7001ab22c90be69889"
+versions = ["1.1.6"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/sa/me/same-file"
+original_sha256 = "221283305a585e7c5b46c679b84969d86f77d93d664191db758dcff236bf8067"
+versions = ["1.0.6"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/se/rd/serde_core"
+original_sha256 = "00f5412df941bf2bb3aa7fe7e2456fabff8ce96f324060645cb84a1a0200647c"
+versions = ["1.0.229"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/se/rd/serde_derive"
+original_sha256 = "04e32a953a39f321a61f4914b3b22025f8476f6d5f7140025e3766c28c6af06d"
+versions = ["1.0.229"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/sh/le/shlex"
+original_sha256 = "6e1c6fcc74d6967bda31e9ab5c4d4159594e4e10d8a13576f7b2fc1ea388f79b"
+versions = ["2.0.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/st/rs/strsim"
+original_sha256 = "d20c8ce62e58463847daf053c4f8a188a2ebb1f3cf0694c8173b24fb467e1328"
+versions = ["0.11.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/3/s/syn"
+original_sha256 = "4814609ec69de6dfcb1e8b961e9479ef2bdce2ccfd8364227948b496ea1e24da"
+versions = ["2.0.119", "3.0.9"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/te/mp/tempfile"
+original_sha256 = "d3e996668f54466ea0af9253a623ac853b4943937f3181de73bad365f29f7098"
+versions = ["3.27.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/te/rm/terminal_size"
+original_sha256 = "61771923c50ac7d762092c8da6fef4c76e63ba5c5b720f77f101997662b3a2a8"
+versions = ["0.4.4"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/te/st/test-case"
+original_sha256 = "4667710fcefbf873bcdb3182f7ead024e4514ae1aa8778459669aae232fcad65"
+versions = ["3.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/te/st/test-case-core"
+original_sha256 = "b1e61338051fc9c50f9fba35eb7893f0c5efcbbba85f1d0aaabba5231e7664e7"
+versions = ["3.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/te/st/test-case-macros"
+original_sha256 = "658339af4843c4949f79753c969a83bff545b31111a9e8bbc5c8eef98462a0f9"
+versions = ["3.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/th/is/thiserror"
+original_sha256 = "7021c1811d006903b19b4e86c9cdf8d4d7d1acfacd82c8f4fd12394c740285d2"
+versions = ["2.0.21"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/th/is/thiserror-impl"
+original_sha256 = "e4769279419154f5dd859c2253d54532f662d5a223f00bf970872cb14fd7ac90"
+versions = ["2.0.21"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ti/kv/tikv-jemalloc-sys"
+original_sha256 = "d99c16b96e01369eb7e8357dea33d91683f18e01610f65a722d22dfd6e935cd6"
+versions = ["0.7.1+5.3.1-0-g81034ce1f1373e37dc865038e1bc8eeecf559ce8"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ti/kv/tikv-jemallocator"
+original_sha256 = "fc65ecb220ce9bc291be2ab6228719c060e9d1925920f842ef863d121de82e0b"
+versions = ["0.7.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/un/ic/unicode-ident"
+original_sha256 = "a0821e0a18fc924414c5454be047fc48ecc7b14fc2ed26683a101f4007d7a261"
+versions = ["1.0.27"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/un/ic/unicode-segmentation"
+original_sha256 = "13561244dd6fce3361c5f83724a152413e0c4cb2d85bf6b9e64f64da783c968c"
+versions = ["1.13.3"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/ut/f8/utf8parse"
+original_sha256 = "22a08afe22f39ea7244e4285cc57333634075da8d732478d1150e2332cce072f"
+versions = ["0.2.2"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wa/lk/walkdir"
+original_sha256 = "9e9794e43be3e8c51dee198ccd48e6de397f5e28bbadf41988c65fb1998e8deb"
+versions = ["2.5.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi"
+original_sha256 = "aa0065a77fa817f68e88ef72ba687d930eb82efcc00d830ba0cb99831ede37c0"
+versions = ["0.3.9"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi-i686-pc-windows-gnu"
+original_sha256 = "9275dfc90e419c6a237872456c7e38b504aa94a5af65f0c16333acc3ca94cdc0"
+versions = ["0.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi-util"
+original_sha256 = "e975007df98ac0525acdfa6eac385761417423661c428b27ff26ce50d34a4426"
+versions = ["0.1.11"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wi/na/winapi-x86_64-pc-windows-gnu"
+original_sha256 = "4fdc4d9f600da7bf76502c9b8cf40cee5745b9356942700773457f9d9ff69b8f"
+versions = ["0.4.0"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wi/nd/windows-link"
+original_sha256 = "d22f6b9ac1dea4587d049cfe5acaa4a769c18feb63dd29aa61bee99837a06546"
+versions = ["0.2.1"]
+
+[[index_reduction]]
+file = "index/index.crates.io-1949cf8c6b5b557f/.cache/wi/nd/windows-sys"
+original_sha256 = "beab389ed4ab8a0aca87fde6a1195814c27d62aae5f6ffb39bb2207ad2f9ad66"
+versions = ["0.61.2"]
