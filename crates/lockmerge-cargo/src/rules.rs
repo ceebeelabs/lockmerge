@@ -1,12 +1,13 @@
 //! Envelope checks, the verdict on conflicts the engine's base rules do not
 //! settle, and validation of the merged set.
 
-use crate::codes::{self, E1, V2, V3, V4, V5};
+use crate::codes::{self, E1, V2, V3, V4, V5, V6};
+use crate::index::{self, IndexLookup};
 use crate::model::{Id, Lock, Package, compat_class};
 use crate::moves;
 use crate::parse::role_name;
 use crate::shared::{ROLES, Shared};
-use lockmerge_core::{Context, Draft, Findings, Proof, Refusal, Role};
+use lockmerge_core::{Context, Draft, Findings, IndexCache, Proof, Refusal, Role};
 use semver::Version;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -44,7 +45,7 @@ pub fn envelope(models: [&Lock; 3], sh: &Shared, cx: &Context<'_>) -> Result<Vec
     let mut proofs = vec![cx.proof(E1, vec![("version", version.to_string())])];
     moves::groups(sh, cx)?;
     moves::moves(sh, cx, &mut proofs)?;
-    different_additions(&models, sh)?;
+    different_additions(&models, sh, cx)?;
     tie_order(&models)?;
     Ok(proofs)
 }
@@ -175,16 +176,18 @@ pub(crate) fn join<T: std::fmt::Display>(items: impl IntoIterator<Item = T>) -> 
         .join(", ")
 }
 
-/// R15: ours added an id that theirs lacks and base lacks, and theirs added a
-/// different one. Two crates that were never resolved together may declare the
-/// same native `links` library. For registry crates only the index can show
-/// that, and for path crates only their manifests; this crate reads neither
-/// yet, so the trigger always refuses, path packages included. Ids both sides
-/// added are not affected, and neither is the lower version of a crate both
-/// sides bumped (M1), which the merge drops and so never puts beside anything.
-fn different_additions(models: &[&Lock; 3], sh: &Shared) -> Result<(), Refusal> {
+/// R15's trigger: ours added an id that theirs lacks and base lacks, and
+/// theirs added a different one. Two crates that were never resolved together
+/// may declare the same native `links` library. A git or path package among
+/// them refuses here: `links` of a git source cannot be read, and a path
+/// package that a side added is not covered by the proof. Registry crates
+/// only set `links_proof`, and `validate` proves their `links` over the merged
+/// set (V6). Ids both sides added are not affected, and neither is the lower
+/// version of a crate both sides bumped (M1), which the merge drops and so
+/// never puts beside anything.
+fn different_additions(models: &[&Lock; 3], sh: &Shared, cx: &Context<'_>) -> Result<(), Refusal> {
     let dropped: Vec<Id> = sh.groups.borrow().iter().map(|g| g.low.clone()).collect();
-    let only = |a: &Lock, b: &Lock, base: &Lock| -> Vec<String> {
+    let only = |a: &Lock, b: &Lock, base: &Lock| -> Vec<Id> {
         a.packages
             .keys()
             .filter(|id| {
@@ -192,7 +195,7 @@ fn different_additions(models: &[&Lock; 3], sh: &Shared) -> Result<(), Refusal> 
                     && !base.packages.contains_key(id)
                     && !dropped.contains(id)
             })
-            .map(|id| id.to_string())
+            .cloned()
             .collect()
     };
     let ours = only(models[1], models[2], models[0]);
@@ -200,11 +203,139 @@ fn different_additions(models: &[&Lock; 3], sh: &Shared) -> Result<(), Refusal> 
     if ours.is_empty() || theirs.is_empty() {
         return Ok(());
     }
-    Err(Refusal::new(
-        codes::R15,
-        ours.iter().chain(&theirs).cloned().collect(),
-        vec![("ours", ours.join(", ")), ("theirs", theirs.join(", "))],
-    ))
+    let show = |ids: &[Id]| join(ids);
+    let mut facts = vec![("ours", show(&ours)), ("theirs", show(&theirs))];
+    if let Some(id) = ours.iter().chain(&theirs).find(|id| !id.is_registry()) {
+        facts.push((
+            "detail",
+            format!("{id} is not a registry package, so its `links` cannot be read from the index"),
+        ));
+        return Err(Refusal::new(
+            codes::R15,
+            ours.iter()
+                .chain(&theirs)
+                .map(|id| id.to_string())
+                .collect(),
+            facts,
+        ));
+    }
+    // The entries of the added ids come first, as decision 15 says, so that a
+    // missing cache refuses before the later steps. The full proof over the
+    // merged set is V6.
+    let fail = |id: &Id, why: String| {
+        Refusal::new(
+            codes::R15,
+            vec![id.to_string()],
+            vec![
+                ("ours", show(&ours)),
+                ("theirs", show(&theirs)),
+                ("detail", why),
+            ],
+        )
+    };
+    let Some(cache) = cx.index else {
+        let id = &ours[0];
+        return Err(fail(id, "the registry index cache is not available".into()));
+    };
+    for (id, side) in ours
+        .iter()
+        .map(|i| (i, 1))
+        .chain(theirs.iter().map(|i| (i, 2)))
+    {
+        let sum = models[side].packages[id].checksum.as_deref();
+        registry_links(id, sum, cache).map_err(|why| fail(id, why))?;
+    }
+    sh.links_proof.set(true);
+    Ok(())
+}
+
+/// The `links` of a registry package from the index cache: `Ok(None)` if its
+/// entry matches name, version and checksum and has none.
+fn registry_links(
+    id: &Id,
+    checksum: Option<&str>,
+    cache: &dyn IndexCache,
+) -> Result<Option<String>, String> {
+    let Some(sum) = checksum else {
+        return Err("it has no checksum to match an index entry against".into());
+    };
+    let Some(path) = index::entry_path(&id.name) else {
+        return Err("the cache file of its name is not pinned".into());
+    };
+    match index::lookup(&cache.files(&path), &id.name, &id.version.to_string(), sum) {
+        IndexLookup::Found { links } => Ok(links),
+        IndexLookup::Unavailable(why) => Err(why),
+    }
+}
+
+/// V6: the native-links proof over the merged set, from the registry index
+/// cache and the merged manifests of the path packages. Every package must
+/// give its `links` (or the absence of one) and no value may repeat. A git
+/// source, a registry package without a matching index entry and a path
+/// package whose manifest is not read all refuse, and so does an absent cache.
+fn native_links(
+    items: &[(&Id, &Package)],
+    sh: &Shared,
+    cx: &Context<'_>,
+) -> Result<Vec<(&'static str, String)>, Refusal> {
+    let all = || {
+        items
+            .iter()
+            .map(|(id, _)| id.to_string())
+            .collect::<Vec<_>>()
+    };
+    let fail = |subjects: Vec<String>, detail: String| {
+        Refusal::new(codes::R15, subjects, vec![("detail", detail)])
+    };
+    let Some(cache) = cx.index else {
+        return Err(fail(
+            all(),
+            "the registry index cache is not available".into(),
+        ));
+    };
+    let mut owners: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut registry = 0;
+    for (id, pkg) in items {
+        let links = if id.is_registry() {
+            registry += 1;
+            registry_links(id, pkg.checksum.as_deref(), cache)
+                .map_err(|why| fail(vec![id.to_string()], why))?
+        } else if id.is_path() {
+            let manifest = sh
+                .found(cx)
+                .map_err(|f| fail(vec![id.to_string()], f.text().to_string()))?
+                .packages
+                .get(*id)
+                .map(|(_, m)| m);
+            match manifest {
+                Some(m) => m.links.clone(),
+                None => {
+                    return Err(fail(
+                        vec![id.to_string()],
+                        "its manifest was not found".into(),
+                    ));
+                }
+            }
+        } else {
+            return Err(fail(
+                vec![id.to_string()],
+                "a git source: its `links` cannot be read".into(),
+            ));
+        };
+        if let Some(l) = links {
+            owners.entry(l).or_default().push(id.to_string());
+        }
+    }
+    if let Some((value, ids)) = owners.iter().find(|(_, ids)| ids.len() > 1) {
+        return Err(fail(
+            ids.clone(),
+            format!("they share the native library `{value}`"),
+        ));
+    }
+    Ok(vec![
+        ("registry packages", registry.to_string()),
+        ("links", join(owners.keys())),
+    ])
 }
 
 /// V5, ties: Cargo sorts ids by name, version, then source, and how it orders
@@ -298,6 +429,15 @@ pub fn validate(draft: &Draft<Id, Package>, sh: &Shared, cx: &Context<'_>) -> Fi
         f.proofs.push(cx.proof(V4, Vec::new()));
     }
     f.refusals.extend(clashes);
+
+    // V6: the native links of the merged set, when each side added different
+    // registry crates.
+    if sh.links_proof.get() {
+        match native_links(&items, sh, cx) {
+            Ok(facts) => f.proofs.push(cx.proof(V6, facts)),
+            Err(r) => f.refusals.push(r),
+        }
+    }
 
     // V5: the set can be written, and every edge resolves back to its target.
     // The version number does not change whether the set can be written.
