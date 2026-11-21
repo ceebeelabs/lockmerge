@@ -1,0 +1,8 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+alpha = "1"
+native-g = { git = "https://github.com/example/native-g" }
