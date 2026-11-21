@@ -55,4 +55,4 @@ change (YYYY-MM-DD).
 | [0015](0015-r15-is-a-whole-file-refusal.md) | R15 is a whole-file refusal (corrects the context of ADR 0013) | Accepted |
 | [0016](0016-how-the-cargo-manifest-rules-read-and-compare-manifests.md) | How the Cargo manifest rules read and compare manifests | Accepted |
 | [0017](0017-v1-also-requires-few-regressions-against-plain-git.md) | v1 also requires few regressions against plain git (amends ADR 0005) | Accepted |
-| [0018](0018-read-patch-exactly-and-accept-one-sided-path-crate-version-moves.md) | Read `[patch]` exactly and accept one-sided path-crate version moves (amends ADR 0016) | Proposed |
+| [0018](0018-read-patch-exactly-and-accept-one-sided-path-crate-version-moves.md) | Read `[patch]` exactly and accept one-sided path-crate version moves (amends ADR 0016) | Accepted |

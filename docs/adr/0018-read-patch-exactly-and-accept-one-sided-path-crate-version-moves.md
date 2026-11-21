@@ -1,6 +1,6 @@
 # 0018. Read `[patch]` exactly and accept one-sided path-crate version moves (amends ADR 0016)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-21
 
 ## Context
