@@ -133,7 +133,7 @@ tests/fixtures/      exact-byte fixtures (ADR 0007)
   (`git merge-file` on the three lockfiles, ADR 0003). The core never produces
   them.
 - Tests and the benchmark replace both boundaries with fakes (`FakeManifests`
-  and `FakeIndex` in `testkit`, built from a fixture's `manifests/` directory).
+  and `FakeIndex` in `testkit`, built from a rule fixture's `manifests/merged/` directory).
   `FakeIndex` returns fixture bytes through the same pure functions the real
   implementation uses.
 
@@ -266,8 +266,8 @@ changing an ADR.
 **Where the accept and refuse tests live.**
 
 - Each rule and each reason code has a pair of fixture directories in the
-  ADR 0007 layout (`base`, `ours`, `theirs`, `expected`, `manifests/`,
-  `case.toml`):
+  ADR 0007 layout (`base`, `ours`, `theirs`, `expected`,
+  `manifests/merged/`, `case.toml`):
   - `tests/fixtures/rules/<format>/<rule>/accept-<slug>/`
   - `tests/fixtures/rules/<format>/<rule>/refuse-<slug>/`
 - `case.toml` of a refusal case holds `outcome = "refused"` and
@@ -282,8 +282,18 @@ changing an ADR.
   `case.toml` also carries `source` (where the bytes came from) and `path`
   (the repository path of the file). It may list `downgrades`: a non-fatal
   code never ends a merge, so such a code is covered by a case that lists it
-  there. In a case's `manifests/` directory, `<repo path>` holds the merged
-  manifest the fake returns and `<repo path>.conflict` makes it a conflict.
+  there. It may also list `also_refused`: the codes of the fatal refusals
+  after the primary one, in order; the runner checks it exactly, like
+  `downgrades`.
+- **Two manifest layouts, so they cannot be confused.** A rule fixture
+  (hand-built, `tests/fixtures/rules/`) holds already-merged manifests:
+  `manifests/merged/<repo path>` is the merged manifest the fake returns;
+  `manifests/merged/<repo path>.conflict`, an empty file, means the manifest
+  merge conflicted; no file means unavailable. A benchmark case
+  (`tests/fixtures/<ecosystem>/`) keeps the per-side layout of ADR 0007,
+  `manifests/{base,ours,theirs}/<repo path>`, which the bench replays through
+  real git. The testkit rejects a per-side directory in a rule fixture, and
+  anything else beside `merged/`, with an error.
 - Unit tests of a validator or hook may sit next to the code. The pair
   fixtures are the contract.
 - The pure index functions of `lockmerge-cargo` (path, entry parsing, matching,
