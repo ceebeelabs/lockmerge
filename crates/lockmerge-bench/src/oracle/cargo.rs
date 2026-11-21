@@ -459,8 +459,11 @@ impl Oracle for CargoOracle {
                 if !p.dependencies.is_empty() {
                     return Err(format!("{} has both dependencies and replace", p.id()));
                 }
-                if !r.contains(" (") {
-                    return Err(format!("replace `{r}` is not a full package id"));
+                // Cargo writes a source-less target (a path package) as
+                // `name version`; any other as `name version (source)`. A bare
+                // name is not an id.
+                if !r.contains(' ') {
+                    return Err(format!("replace `{r}` has no version"));
                 }
                 referenced.insert(resolve(r, &lock.packages)?);
             }
@@ -634,11 +637,26 @@ mod tests {
                 .unwrap_err()
                 .contains("names no package")
         );
-        // Ambiguous target: a bare name matching two packages.
-        let ambiguous = format!(
-            "{GOOD}\n[[package]]\nname = \"dep\"\nversion = \"2.0.0\"\nsource = \"{SRC}\"\nchecksum = \"bb\"\n\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"dep 1.0.0\"\n"
+        // Path replacement: the target has no source, so `name version` names it.
+        let path = "[[package]]\nname = \"bar\"\nversion = \"0.1.0\"\n\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"bar 0.1.0\"\n";
+        let with_path = format!("{GOOD}\n{path}");
+        CargoOracle.valid(&lock(4, &with_path)).unwrap();
+        // Neighbor: the same text is ambiguous when two packages are named
+        // `dep 1.0.0` (one registry, one path).
+        let dup = format!(
+            "{GOOD}\n[[package]]\nname = \"dep\"\nversion = \"1.0.0\"\n\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"dep 1.0.0\"\n"
         );
-        assert!(CargoOracle.valid(&lock(4, &ambiguous)).is_err());
+        assert!(
+            CargoOracle
+                .valid(&lock(4, &dup))
+                .unwrap_err()
+                .contains("ambiguous")
+        );
+        // A bare name is not a replacement id.
+        let bare = format!(
+            "{GOOD}\n[[package]]\nname = \"old\"\nversion = \"1.0.0\"\nreplace = \"dep\"\n"
+        );
+        assert!(CargoOracle.valid(&lock(4, &bare)).is_err());
     }
 
     #[test]
