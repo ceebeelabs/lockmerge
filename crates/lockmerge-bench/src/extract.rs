@@ -357,6 +357,9 @@ fn case_toml(
         // A squash-merged pull request: `merge_commit` is the squash commit,
         // `parents` its parent (ours) and the pull request head (theirs).
         s.push_str(&format!("pull_request = {n}\n"));
+        if let Some(proof) = c.squash_proof {
+            s.push_str(&format!("squash_proof = {}\n", q(proof)));
+        }
     }
     s.push_str("ours_is = \"parent1\"\n");
     s.push_str(&format!("kind = {}\n", q(c.kind.name())));
