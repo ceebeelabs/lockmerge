@@ -473,7 +473,6 @@ fn merge_tree_outside_lockfiles(
         "--write-tree",
         "--name-only",
         "-z",
-        "--no-messages",
         "--merge-base",
         base,
         ours,
@@ -499,13 +498,38 @@ fn merge_tree_outside_lockfiles(
     if tree.is_empty() {
         return Err("git merge-tree: no tree in the output".into());
     }
-    for path in fields.filter(|p| !p.is_empty()) {
-        if !src
-            .lockfiles
-            .contains(&String::from_utf8_lossy(path).into_owned())
-        {
+    let is_lockfile = |p: &[u8]| {
+        src.lockfiles
+            .contains(&String::from_utf8_lossy(p).into_owned())
+    };
+    // Conflicted file entries, ended by an empty field.
+    for path in fields.by_ref().take_while(|p| !p.is_empty()) {
+        if !is_lockfile(path) {
             return Ok(None);
         }
+    }
+    // Then the messages: a path count, the paths, a type and the text. Some
+    // conflicts (a directory rename split) have no conflicted file entry and
+    // show only here, so every CONFLICT message must name only lockfiles. A
+    // message that cannot be read, or names no path, is refused.
+    let rest: Vec<&[u8]> = fields.collect();
+    let mut i = 0;
+    while i < rest.len() {
+        if rest[i].is_empty() && i + 1 == rest.len() {
+            break;
+        }
+        let count = std::str::from_utf8(rest[i])
+            .ok()
+            .and_then(|n| n.parse::<usize>().ok());
+        let Some(count) = count else { return Ok(None) };
+        let (paths, kind) = (rest.get(i + 1..i + 1 + count), rest.get(i + 1 + count));
+        let (Some(paths), Some(kind), Some(_text)) = (paths, kind, rest.get(i + 2 + count)) else {
+            return Ok(None);
+        };
+        if kind.starts_with(b"CONFLICT") && (count == 0 || !paths.iter().all(|p| is_lockfile(p))) {
+            return Ok(None);
+        }
+        i += count + 3;
     }
     Ok(Some(tree))
 }

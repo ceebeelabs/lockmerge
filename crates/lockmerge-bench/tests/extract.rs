@@ -855,6 +855,10 @@ struct Squash {
     fixup: bool,
     /// With `hunks`: both sides change the same line of `Cargo.toml`.
     same_hunk: bool,
+    /// With `hunks`: main splits `z/{b,c}` into `y/b` and `w/c`, the pull
+    /// request adds `z/d`, and the squash keeps those locations. Git reports a
+    /// directory rename conflict with no conflicted file entry.
+    dir_split: bool,
     /// A second commit on the default branch also names the pull request.
     second_commit: bool,
     /// The pull request leaves the lockfile alone.
@@ -879,6 +883,15 @@ fn manifest(top: Option<&str>, bottom: Option<&str>) -> String {
     )
 }
 
+/// Moves `z/b` and `z/c` into two different directories.
+fn split_z(r: &Repo) {
+    r.write("y/b", "b\n");
+    r.write("w/c", "c\n");
+    for f in ["z/b", "z/c"] {
+        let _ = fs::remove_file(r.path().join(f));
+    }
+}
+
 /// A repository where pull request 7 adds `pr1` to the lockfile and the
 /// default branch adds `m1`, so plain git conflicts, and the pull request is
 /// squash-merged (the lockfile resolved by hand) with `refs/pull/7/head` left
@@ -893,6 +906,8 @@ fn squash_scenario(v: Squash) -> Landed {
     );
     r.write("src.rs", "one\n");
     r.write("other.rs", "o\n");
+    r.write("z/b", "b\n");
+    r.write("z/c", "c\n");
     r.write("Cargo.lock", &lock(&["p1", "p2"]));
     r.commit("root");
     r.git(&["checkout", "-q", "-B", "pr"]);
@@ -905,6 +920,9 @@ fn squash_scenario(v: Squash) -> Landed {
     }
     if v.hunks {
         r.write("Cargo.toml", &manifest(Some("pr"), None));
+    }
+    if v.dir_split {
+        r.write("z/d", "d\n");
     }
     r.commit("pr work");
     let head = r.head();
@@ -920,6 +938,9 @@ fn squash_scenario(v: Squash) -> Landed {
             manifest(None, Some("2"))
         };
         r.write("Cargo.toml", &m);
+    }
+    if v.dir_split {
+        split_z(&r);
     }
     r.commit("main work");
     let ours = r.head();
@@ -940,6 +961,10 @@ fn squash_scenario(v: Squash) -> Landed {
             manifest(Some("pr"), Some("2"))
         };
         r.write("Cargo.toml", &m);
+    }
+    if v.dir_split {
+        split_z(&r);
+        r.write("z/d", "d\n");
     }
     if v.extra_change {
         r.write("other.rs", "changed\n");
@@ -1075,6 +1100,18 @@ fn the_same_manifest_hunk_conflicting_is_still_unproven() {
     let (l, idx, out) = run_squash(Squash {
         hunks: true,
         same_hunk: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn a_directory_rename_conflict_outside_the_lockfiles_is_unproven() {
+    // Git reports it only as a message, with no conflicted file entry.
+    let (l, idx, out) = run_squash(Squash {
+        hunks: true,
+        dir_split: true,
         ..Squash::default()
     });
     assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
