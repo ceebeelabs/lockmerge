@@ -1403,3 +1403,39 @@ fn survey_counts_branch_merges_as_their_own_group_with_the_new_skips() {
     );
     assert!(unmerged.contains("pr-not-merged 1"), "{unmerged}");
 }
+
+#[test]
+fn a_capped_choice_keeps_the_newest_branch_merge_not_the_lowest_pull_request() {
+    // Pull request 3 holds the older merge, pull request 7 the newer one.
+    let r = Repo::new();
+    r.write("LICENSE-MIT", MIT);
+    r.write("Cargo.toml", &manifest(None, None));
+    r.write("Cargo.lock", &lock(&["p1", "p2"]));
+    r.commit("root");
+    let mut merges = Vec::new();
+    for (n, side) in [(3, "a"), (7, "b")] {
+        let (pr, m) = (format!("pr{n}"), format!("m{n}"));
+        r.git(&["checkout", "-q", "-B", &pr, "main"]);
+        r.write("Cargo.lock", &lock(&["p1", "p2", &pr]));
+        r.write(&format!("{side}.rs"), "x\n");
+        r.commit("pr work");
+        r.git(&["checkout", "-q", "-B", &m, "main"]);
+        r.write("Cargo.lock", &lock(&["p1", "p2", &m]));
+        r.commit("main work");
+        r.git(&["checkout", "-q", &pr]);
+        merges.push(r.merge(&m, &lock(&["p1", "p2", &m, &pr])));
+        r.git(&["update-ref", &format!("refs/pull/{n}/head"), "HEAD"]);
+    }
+    r.git(&["checkout", "-q", "main"]);
+    for (n, pr, side) in [(3, "pr3", "a"), (7, "pr7", "b")] {
+        r.write(&format!("{side}.rs"), "x\n");
+        r.write("Cargo.lock", &lock(&["p1", "p2", pr]));
+        r.commit(&format!("Add {pr} (#{n})"));
+    }
+    let mut src = source(&r, 1);
+    src.pr_branch_merges = true;
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&src, &opts(&out, &cache)).unwrap();
+    assert!(case_dir(&out, &merges[1]).exists(), "newest merge is kept");
+    assert!(!case_dir(&out, &merges[0]).exists());
+}

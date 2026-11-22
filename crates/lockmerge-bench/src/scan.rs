@@ -858,7 +858,17 @@ fn scan_pr_branches(
             }
         }
     }
+    // Newest first by commit date (stable, so ties keep the order seen), not
+    // by pull request number, so a capped choice keeps the newest merges.
+    let mut dated: Vec<(i64, (String, String))> = Vec::new();
     for key in keys {
+        let when = text(git_out(repo, &["log", "-1", "--format=%ct", &key.0])?)
+            .parse::<i64>()
+            .map_err(|_| format!("unreadable commit date of {}", key.0))?;
+        dated.push((when, key));
+    }
+    dated.sort_by_key(|(when, _)| std::cmp::Reverse(*when));
+    for (_, key) in dated {
         if max_taken.is_some_and(|m| *taken >= m) {
             break;
         }
