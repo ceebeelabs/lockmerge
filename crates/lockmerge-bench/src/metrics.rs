@@ -18,6 +18,8 @@ pub struct CaseResult {
     pub attribution: Option<Attribution>,
     /// The case holds a reviewed waiver.
     pub waived: bool,
+    /// The case is a merge from a pull request's own history (ADR 0021).
+    pub pr_branch: bool,
 }
 
 /// The 95% Wilson score lower bound of `successes` out of `n`. Zero when
@@ -68,6 +70,12 @@ pub struct Metrics {
     pub applied: BTreeMap<String, usize>,
     pub refusals: BTreeMap<String, usize>,
     pub downgrades: BTreeMap<String, usize>,
+    /// The PR-branch group (ADR 0021): cases, reachable cases, reachable
+    /// cases where plain git conflicts, and of those resolved correctly.
+    pub pb_n: usize,
+    pub pb_reachable: usize,
+    pub pb_c_r: usize,
+    pub pb_s_r: usize,
 }
 
 impl Metrics {
@@ -98,6 +106,16 @@ pub fn compute(results: &[CaseResult]) -> Metrics {
         *m.git_outcomes.entry(r.git.name()).or_default() += 1;
         times.push(r.millis);
         let conflict = r.git == GitOutcome::Conflict;
+        if r.pr_branch {
+            m.pb_n += 1;
+            if r.kind == Kind::Reachable {
+                m.pb_reachable += 1;
+                if conflict {
+                    m.pb_c_r += 1;
+                    m.pb_s_r += usize::from(r.class == Class::ResolvedCorrect);
+                }
+            }
+        }
         match r.kind {
             Kind::Reachable => {
                 m.reachable += 1;
@@ -180,6 +198,7 @@ mod tests {
             exact: false,
             attribution: None,
             waived: false,
+            pr_branch: false,
         }
     }
 
@@ -259,5 +278,25 @@ mod tests {
         }
         let m = compute(&v);
         assert_eq!((m.millis_max, m.millis_p95), (20, 19));
+    }
+
+    #[test]
+    fn the_pr_branch_group_is_counted_apart() {
+        let mut a = r(
+            Kind::Reachable,
+            GitOutcome::Conflict,
+            Class::ResolvedCorrect,
+        );
+        a.pr_branch = true;
+        let mut b = r(Kind::Reachable, GitOutcome::Conflict, Class::Refused);
+        b.pr_branch = true;
+        let c = r(
+            Kind::Reachable,
+            GitOutcome::Conflict,
+            Class::ResolvedCorrect,
+        );
+        let m = compute(&[a, b, c]);
+        assert_eq!((m.pb_n, m.pb_reachable, m.pb_c_r, m.pb_s_r), (2, 2, 2, 1));
+        assert_eq!((m.c_r, m.s_r), (3, 2));
     }
 }

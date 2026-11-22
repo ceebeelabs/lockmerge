@@ -81,6 +81,7 @@ fn case(with_index: bool) -> Case {
             kind: Kind::Reachable,
             foreign_count: None,
             waiver: None,
+            pr_branch: false,
         },
         base: fs::read(dir.join("base")).unwrap(),
         ours: fs::read(dir.join("ours")).unwrap(),

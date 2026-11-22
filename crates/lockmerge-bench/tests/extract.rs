@@ -232,6 +232,7 @@ fn source(r: &Repo, max_cases: usize) -> Source {
         git_clean_percent: 25,
         license: None,
         squash_prs: false,
+        pr_branch_merges: false,
     }
 }
 
@@ -1175,4 +1176,266 @@ fn survey_counts_squash_candidates_only_when_asked() {
     src.squash_prs = false;
     let off = survey(&repo, &src, &CargoOracle).unwrap();
     assert!(off.contains("0 candidates"), "{off}");
+}
+
+// Merge commits in a pull request's own history (`pr_branch_merges`).
+
+#[derive(Default)]
+struct Branch {
+    /// A later commit on the branch changes the lockfile again.
+    later_lock_change: bool,
+    /// The pull request is never squash-merged.
+    unmerged: bool,
+    /// The default branch also merges the pull request with a merge commit, so
+    /// the branch merge is reachable from the pinned revision.
+    reachable_from_pin: bool,
+    /// A second ref, with a lower number, points at the same head.
+    second_ref: bool,
+}
+
+struct BranchRepo {
+    repo: Repo,
+    merge: String,
+    ours: String,
+    theirs: String,
+}
+
+/// Pull request 7 adds `pr1`; main adds `m1`. The author merges main into the
+/// branch (merge `M`, the lockfile resolved by hand), then the pull request is
+/// squash-merged on main. `refs/pull/7/head` points at the branch head.
+fn branch_scenario(v: Branch) -> BranchRepo {
+    let r = Repo::new();
+    r.write("LICENSE-MIT", MIT);
+    r.write("Cargo.toml", &manifest(None, None));
+    r.write("Cargo.lock", &lock(&["p1", "p2"]));
+    r.commit("root");
+    r.git(&["checkout", "-q", "-B", "pr"]);
+    r.write("Cargo.lock", &lock(&["p1", "p2", "pr1"]));
+    r.write("pr.rs", "pr\n");
+    r.commit("pr work");
+    let ours = r.head();
+    r.git(&["checkout", "-q", "-B", "main", "HEAD~1"]);
+    r.write("Cargo.lock", &lock(&["p1", "p2", "m1"]));
+    r.commit("main work");
+    let theirs = r.head();
+    r.git(&["checkout", "-q", "pr"]);
+    let merge = r.merge("main", &lock(&["p1", "p2", "m1", "pr1"]));
+    if v.later_lock_change {
+        r.write("Cargo.lock", &lock(&["p1", "p2", "m1", "pr1", "pr2"]));
+        r.commit("more");
+    }
+    let head = r.head();
+    r.git(&["checkout", "-q", "main"]);
+    if v.reachable_from_pin {
+        r.git(&["merge", "--no-ff", "--no-edit", "pr"]);
+    } else if !v.unmerged {
+        r.write("pr.rs", "pr\n");
+        let l = if v.later_lock_change {
+            lock(&["p1", "p2", "m1", "pr1", "pr2"])
+        } else {
+            lock(&["p1", "p2", "m1", "pr1"])
+        };
+        r.write("Cargo.lock", &l);
+        r.commit("Add pr1 (#7)");
+    }
+    r.git(&["update-ref", "refs/pull/7/head", &head]);
+    if v.second_ref {
+        r.git(&["update-ref", "refs/pull/3/head", &head]);
+    }
+    BranchRepo {
+        repo: r,
+        merge,
+        ours,
+        theirs,
+    }
+}
+
+fn branch_source(b: &BranchRepo, on: bool) -> Source {
+    let mut s = source(&b.repo, 10);
+    s.pr_branch_merges = on;
+    s
+}
+
+fn run_branch(v: Branch, on: bool) -> (BranchRepo, TempDir) {
+    let b = branch_scenario(v);
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&branch_source(&b, on), &opts(&out, &cache)).unwrap();
+    (b, out)
+}
+
+fn survey_branch(v: Branch, on: bool) -> String {
+    let b = branch_scenario(v);
+    let cache = TempDir::new("cache").unwrap();
+    let repo = cache.path().join("t-repo.git");
+    let src = branch_source(&b, on);
+    ensure_clone(&src, &repo).unwrap();
+    survey(&repo, &src, &CargoOracle).unwrap()
+}
+
+fn entries_for(out: &TempDir, merge: &str) -> usize {
+    let text = fs::read_to_string(out.path().join("cargo/INDEX.toml")).unwrap();
+    text.matches(&format!("merge_commit = \"{merge}\"")).count()
+}
+
+#[test]
+fn a_branch_merge_of_a_squash_merged_pull_request_is_a_case() {
+    let (b, out) = run_branch(Branch::default(), true);
+    assert_eq!(index(&out)[&b.merge], "case:reachable");
+    let dir = case_dir(&out, &b.merge);
+    let bytes = |n: &str| fs::read_to_string(dir.join(n)).unwrap();
+    assert_eq!(bytes("base"), lock(&["p1", "p2"]));
+    assert_eq!(bytes("ours"), lock(&["p1", "p2", "pr1"]));
+    assert_eq!(bytes("theirs"), lock(&["p1", "p2", "m1"]));
+    assert_eq!(bytes("expected"), lock(&["p1", "p2", "m1", "pr1"]));
+    let doc: DocumentMut = bytes("case.toml").parse().unwrap();
+    assert_eq!(doc["origin"].as_str(), Some("pr-branch"));
+    assert_eq!(doc["pull_request"].as_integer(), Some(7));
+    assert_eq!(doc["merge_commit"].as_str(), Some(b.merge.as_str()));
+    let parents: Vec<&str> = doc["parents"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(parents, [b.ours.as_str(), b.theirs.as_str()]);
+    assert!(doc.get("squash_proof").is_none());
+    load_case("cargo", "x", &dir).unwrap();
+}
+
+#[test]
+fn a_branch_resolution_changed_by_a_later_commit_is_unsettled() {
+    let (b, out) = run_branch(
+        Branch {
+            later_lock_change: true,
+            ..Branch::default()
+        },
+        true,
+    );
+    assert_eq!(index(&out)[&b.merge], "skipped:pr-merge-unsettled");
+    assert!(!case_dir(&out, &b.merge).exists());
+}
+
+#[test]
+fn a_branch_merge_of_an_unmerged_pull_request_is_skipped() {
+    let (b, out) = run_branch(
+        Branch {
+            unmerged: true,
+            ..Branch::default()
+        },
+        true,
+    );
+    assert_eq!(index(&out)[&b.merge], "skipped:pr-not-merged");
+    assert!(!case_dir(&out, &b.merge).exists());
+}
+
+#[test]
+fn a_branch_merge_reachable_from_the_pin_is_left_to_the_first_parent_scan() {
+    let (b, out) = run_branch(
+        Branch {
+            reachable_from_pin: true,
+            ..Branch::default()
+        },
+        true,
+    );
+    assert_eq!(index(&out)[&b.merge], "case:reachable");
+    assert_eq!(entries_for(&out, &b.merge), 1);
+    let doc: DocumentMut = fs::read_to_string(case_dir(&out, &b.merge).join("case.toml"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert!(doc.get("origin").is_none() && doc.get("pull_request").is_none());
+}
+
+#[test]
+fn a_merge_in_two_pull_requests_is_one_case() {
+    let (b, out) = run_branch(
+        Branch {
+            second_ref: true,
+            ..Branch::default()
+        },
+        true,
+    );
+    // Pull request 3 is not merged and comes first; 7 still takes the case.
+    assert_eq!(index(&out)[&b.merge], "case:reachable");
+    assert_eq!(entries_for(&out, &b.merge), 1);
+    let doc: DocumentMut = fs::read_to_string(case_dir(&out, &b.merge).join("case.toml"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert_eq!(doc["pull_request"].as_integer(), Some(7));
+}
+
+#[test]
+fn branch_merges_are_off_unless_the_source_asks_for_them() {
+    let (b, out) = run_branch(Branch::default(), false);
+    assert!(!case_dir(&out, &b.merge).exists());
+    assert_eq!(entries_for(&out, &b.merge), 0);
+    let off = survey_branch(Branch::default(), false);
+    assert!(
+        off.contains("0 candidates") && !off.contains("PR-branch") && !off.contains("pr-"),
+        "{off}"
+    );
+}
+
+#[test]
+fn survey_counts_branch_merges_as_their_own_group_with_the_new_skips() {
+    let on = survey_branch(Branch::default(), true);
+    assert!(
+        on.contains("0 candidates")
+            && on
+                .contains("PR-branch merges 1 (reachable 1, re-resolved 0; plain git conflicts 1)"),
+        "{on}"
+    );
+    let unsettled = survey_branch(
+        Branch {
+            later_lock_change: true,
+            ..Branch::default()
+        },
+        true,
+    );
+    assert!(unsettled.contains("pr-merge-unsettled 1"), "{unsettled}");
+    let unmerged = survey_branch(
+        Branch {
+            unmerged: true,
+            ..Branch::default()
+        },
+        true,
+    );
+    assert!(unmerged.contains("pr-not-merged 1"), "{unmerged}");
+}
+
+#[test]
+fn a_capped_choice_keeps_the_newest_branch_merge_not_the_lowest_pull_request() {
+    // Pull request 3 holds the older merge, pull request 7 the newer one.
+    let r = Repo::new();
+    r.write("LICENSE-MIT", MIT);
+    r.write("Cargo.toml", &manifest(None, None));
+    r.write("Cargo.lock", &lock(&["p1", "p2"]));
+    r.commit("root");
+    let mut merges = Vec::new();
+    for (n, side) in [(3, "a"), (7, "b")] {
+        let (pr, m) = (format!("pr{n}"), format!("m{n}"));
+        r.git(&["checkout", "-q", "-B", &pr, "main"]);
+        r.write("Cargo.lock", &lock(&["p1", "p2", &pr]));
+        r.write(&format!("{side}.rs"), "x\n");
+        r.commit("pr work");
+        r.git(&["checkout", "-q", "-B", &m, "main"]);
+        r.write("Cargo.lock", &lock(&["p1", "p2", &m]));
+        r.commit("main work");
+        r.git(&["checkout", "-q", &pr]);
+        merges.push(r.merge(&m, &lock(&["p1", "p2", &m, &pr])));
+        r.git(&["update-ref", &format!("refs/pull/{n}/head"), "HEAD"]);
+    }
+    r.git(&["checkout", "-q", "main"]);
+    for (n, pr, side) in [(3, "pr3", "a"), (7, "pr7", "b")] {
+        r.write(&format!("{side}.rs"), "x\n");
+        r.write("Cargo.lock", &lock(&["p1", "p2", pr]));
+        r.commit(&format!("Add {pr} (#{n})"));
+    }
+    let mut src = source(&r, 1);
+    src.pr_branch_merges = true;
+    let (out, cache) = (TempDir::new("out").unwrap(), TempDir::new("cache").unwrap());
+    extract(&src, &opts(&out, &cache)).unwrap();
+    assert!(case_dir(&out, &merges[1]).exists(), "newest merge is kept");
+    assert!(!case_dir(&out, &merges[0]).exists());
 }

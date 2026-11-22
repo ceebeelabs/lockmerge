@@ -182,6 +182,25 @@ other way) is not listed. `case.toml` records `pull_request = <n>`; its
 `merge_commit` is `S` and `parents` are `[S's parent, head]`. Squash cases are
 appended after the merge commits in the order of choice (section 6.1).
 
+**Merges in a pull request's own history (opt-in, issue #107, ADR 0021).** A
+source with `pr_branch_merges = true` (it fetches `refs/pull/*` itself) also
+takes a merge commit `M` as a case when `M` has two parents and is reachable
+from `refs/pull/<n>/head` but not from the pinned revision. `ours` and `theirs`
+are its parents in order, `base` their single merge base and `expected = M`;
+rules 1 to 3 above apply unchanged. Also required, else skipped with a reason:
+
+- the pull request landed, either as the unique squash commit proven as above
+  (either proof) or with its head reachable from the pinned revision
+  (`skipped:pr-not-merged`);
+- the head's lockfile equals `M`'s byte for byte (`skipped:pr-merge-unsettled`).
+
+A merge in several pull requests is one case, and merges reachable from the
+pinned revision stay with the first-parent scan. `case.toml` records `origin =
+"pr-branch"` and `pull_request = <n>`. The expected file is the author's branch
+resolution, not a file that landed as-is; the settled rule is why it is
+acceptable (ADR 0021). `survey` and `check` report these cases as their own
+group.
+
 ### 3.2 Reachable or re-resolved
 
 Computed at extraction from the lockfile bytes, and recomputed by `check`.
@@ -484,7 +503,7 @@ saved manifests.
 
 1. `sources.toml` lists repositories: `url`, `ecosystem`, lockfile path(s), a
    pinned tip `revision`, `max_cases`, `max_file_bytes`, and optionally
-   `squash_prs = true` (section 3.1). Only public
+   `squash_prs = true` or `pr_branch_merges = true` (section 3.1). Only public
    repositories with an accepted license; never the orchestrator's repository
    or any history from it.
 2. `survey`: `git clone --bare --filter=blob:none`, list merge commits
@@ -521,7 +540,9 @@ saved manifests.
    `expected-invalid`, `plain-git-error` (`git merge-file` failed rather than reported
    conflicts), `duplicate-change-set` (the same set of changed ids as a case
    already chosen), `re-resolved-quota`, `git-clean-quota` and
-   `over-max-cases`.
+   `over-max-cases`. With `pr_branch_merges` also `pr-not-merged` and
+   `pr-merge-unsettled` (section 3.1); `survey` counts those cases as their own
+   group ("PR-branch merges").
 
 ### 6.2 Layout
 
