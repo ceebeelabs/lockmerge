@@ -58,4 +58,4 @@ change (YYYY-MM-DD).
 | [0018](0018-read-patch-exactly-and-accept-one-sided-path-crate-version-moves.md) | Read `[patch]` exactly and accept one-sided path-crate version moves (amends ADR 0016) | Accepted |
 | [0019](0019-a-manifest-conflict-of-two-insertions-is-read-as-both.md) | A manifest conflict of two insertions is read as both (amends ADR 0008 decision 10 and ADR 0010) | Accepted |
 | [0020](0020-read-links-only-for-ids-one-side-added-and-relax-identical-entries-in-c-and-m1.md) | Read `links` only for ids one side added, and use the identical-entry relaxation in C and M1 e (amends ADR 0008 decision 15 and ADR 0016 decision 3) | Accepted |
-| [0021](0021-take-merge-commits-from-merged-pull-request-branches-as-cases.md) | Take merge commits from merged pull request branches as cases (amends ADR 0005 and ADR 0007) | Proposed |
+| [0021](0021-take-merge-commits-from-merged-pull-request-branches-as-cases.md) | Take merge commits from merged pull request branches as cases (amends ADR 0005 and ADR 0007) | Accepted |

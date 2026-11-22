@@ -1,6 +1,6 @@
 # 0021. Take merge commits from merged pull request branches as cases (amends ADR 0005 and ADR 0007)
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-22
 
 ## Context
