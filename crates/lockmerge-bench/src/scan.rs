@@ -491,7 +491,20 @@ fn merge_tree_outside_lockfiles(
     if !r.ok() && r.code != Some(1) {
         return Err(format!("git merge-tree: {}", r.stderr_text()));
     }
-    let mut fields = r.stdout.split(|b| *b == 0);
+    read_merge_tree(src, r.code == Some(1), &r.stdout)
+}
+
+/// Reads the `-z` output of `git merge-tree` (see
+/// [`merge_tree_outside_lockfiles`]). `conflicted` is whether it exited 1. A
+/// conflicted merge is accepted only when a conflicted entry or a CONFLICT
+/// message names a lockfile: a conflict nothing explains is refused.
+fn read_merge_tree(
+    src: &Source,
+    conflicted: bool,
+    stdout: &[u8],
+) -> Result<Option<String>, String> {
+    let mut explained = false;
+    let mut fields = stdout.split(|b| *b == 0);
     let tree = String::from_utf8_lossy(fields.next().unwrap_or_default())
         .trim()
         .to_string();
@@ -507,6 +520,7 @@ fn merge_tree_outside_lockfiles(
         if !is_lockfile(path) {
             return Ok(None);
         }
+        explained = true;
     }
     // Then the messages: a path count, the paths, a type and the text. Some
     // conflicts (a directory rename split) have no conflicted file entry and
@@ -529,7 +543,11 @@ fn merge_tree_outside_lockfiles(
         if kind.starts_with(b"CONFLICT") && (count == 0 || !paths.iter().all(|p| is_lockfile(p))) {
             return Ok(None);
         }
+        explained |= kind.starts_with(b"CONFLICT") && count > 0;
         i += count + 3;
+    }
+    if conflicted && !explained {
+        return Ok(None);
     }
     Ok(Some(tree))
 }
@@ -735,6 +753,55 @@ pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, 
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    fn lock_source() -> Source {
+        Source {
+            name: "t".into(),
+            url: String::new(),
+            ecosystem: "cargo".into(),
+            lockfiles: vec!["Cargo.lock".into()],
+            revision: String::new(),
+            max_cases: 1,
+            max_file_bytes: 1,
+            git_clean_percent: 25,
+            license: None,
+            squash_prs: true,
+        }
+    }
+
+    #[test]
+    fn a_conflict_that_names_a_lockfile_is_read_as_the_tree() {
+        let s = lock_source();
+        let entries = b"abc\0Cargo.lock\0\0";
+        assert_eq!(
+            read_merge_tree(&s, true, entries).unwrap(),
+            Some("abc".into())
+        );
+        let message = b"abc\0\x001\0Cargo.lock\0CONFLICT (content)\0m\0";
+        assert_eq!(
+            read_merge_tree(&s, true, message).unwrap(),
+            Some("abc".into())
+        );
+        // Clean merges need no evidence.
+        assert_eq!(
+            read_merge_tree(&s, false, b"abc\0").unwrap(),
+            Some("abc".into())
+        );
+    }
+
+    #[test]
+    fn a_conflict_nothing_explains_is_refused() {
+        let s = lock_source();
+        // Exit 1, a tree and an empty conflict section.
+        assert_eq!(read_merge_tree(&s, true, b"abc\0\0").unwrap(), None);
+        assert_eq!(read_merge_tree(&s, true, b"abc\0").unwrap(), None);
+        // Only an informational message.
+        let info = b"abc\0\x001\0Cargo.toml\0Auto-merging\0Auto-merging Cargo.toml\0";
+        assert_eq!(read_merge_tree(&s, true, info).unwrap(), None);
+        // A CONFLICT message with no path explains nothing.
+        let nopath = b"abc\0\x000\0CONFLICT (x)\0m\0";
+        assert_eq!(read_merge_tree(&s, true, nopath).unwrap(), None);
+    }
 
     #[test]
     fn a_relative_clone_path_is_cloned_where_it_is_looked_for() {

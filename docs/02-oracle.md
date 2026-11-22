@@ -171,7 +171,8 @@ branch changed no path in common (lockfiles aside), `S` changes exactly the
 pull request's paths, and each equals the pull request head. `"three-way"`: they
 changed a path in common, `git merge-tree --write-tree --merge-base <base>
 <ours> <head>` (git 2.44 or later) conflicts on no path outside the lockfiles (neither a conflicted file nor a
-conflict message, such as a directory rename split, that names one or no path),
+conflict message, such as a directory rename split, that names one or no path), and a conflicted exit is explained by a conflicted
+lockfile entry or a conflict message naming a lockfile,
 and the merged tree equals `S`'s tree on every path outside the lockfiles. The
 lockfile conflict of that merge is ignored: `expected` is always `S`'s
 lockfile, never the merge-tree output.
