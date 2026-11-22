@@ -848,6 +848,17 @@ struct Squash {
     extra_change: bool,
     /// The default branch and the pull request both change `src.rs`.
     overlap: bool,
+    /// The default branch and the pull request both change `Cargo.toml`, in
+    /// different hunks, and the squash commit is the clean merge.
+    hunks: bool,
+    /// With `hunks`: the squash commit also hand-edits `Cargo.toml` further.
+    fixup: bool,
+    /// With `hunks`: both sides change the same line of `Cargo.toml`.
+    same_hunk: bool,
+    /// With `hunks`: main splits `z/{b,c}` into `y/b` and `w/c`, the pull
+    /// request adds `z/d`, and the squash keeps those locations. Git reports a
+    /// directory rename conflict with no conflicted file entry.
+    dir_split: bool,
     /// A second commit on the default branch also names the pull request.
     second_commit: bool,
     /// The pull request leaves the lockfile alone.
@@ -863,6 +874,24 @@ struct Landed {
     head: String,
 }
 
+/// A `Cargo.toml` with two lines far enough apart to be separate hunks.
+fn manifest(top: Option<&str>, bottom: Option<&str>) -> String {
+    format!(
+        "[package]\nname = \"{}\"\n\n[a]\n[b]\n[c]\n[d]\n[e]\n[f]\n[g]\n[h]\n\n[dependencies]\nz = \"{}\"\n",
+        top.unwrap_or("app"),
+        bottom.unwrap_or("1")
+    )
+}
+
+/// Moves `z/b` and `z/c` into two different directories.
+fn split_z(r: &Repo) {
+    r.write("y/b", "b\n");
+    r.write("w/c", "c\n");
+    for f in ["z/b", "z/c"] {
+        let _ = fs::remove_file(r.path().join(f));
+    }
+}
+
 /// A repository where pull request 7 adds `pr1` to the lockfile and the
 /// default branch adds `m1`, so plain git conflicts, and the pull request is
 /// squash-merged (the lockfile resolved by hand) with `refs/pull/7/head` left
@@ -870,13 +899,15 @@ struct Landed {
 fn squash_scenario(v: Squash) -> Landed {
     let r = Repo::new();
     r.write("LICENSE-MIT", MIT);
-    r.write("Cargo.toml", "[package]\nname = \"app\"\n");
+    r.write("Cargo.toml", &manifest(None, None));
     r.write(
         "crates/member/Cargo.toml",
         "[package]\nname = \"member\"\nversion = \"0.1.0\"\n",
     );
     r.write("src.rs", "one\n");
     r.write("other.rs", "o\n");
+    r.write("z/b", "b\n");
+    r.write("z/c", "c\n");
     r.write("Cargo.lock", &lock(&["p1", "p2"]));
     r.commit("root");
     r.git(&["checkout", "-q", "-B", "pr"]);
@@ -887,12 +918,29 @@ fn squash_scenario(v: Squash) -> Landed {
     if v.overlap {
         r.write("src.rs", "pr version\n");
     }
+    if v.hunks {
+        r.write("Cargo.toml", &manifest(Some("pr"), None));
+    }
+    if v.dir_split {
+        r.write("z/d", "d\n");
+    }
     r.commit("pr work");
     let head = r.head();
     r.git(&["checkout", "-q", "-B", "main", "HEAD~1"]);
     r.write("Cargo.lock", &lock(&["p1", "p2", "m1"]));
     if v.overlap {
         r.write("src.rs", "main version\n");
+    }
+    if v.hunks {
+        let m = if v.same_hunk {
+            manifest(Some("main"), None)
+        } else {
+            manifest(None, Some("2"))
+        };
+        r.write("Cargo.toml", &m);
+    }
+    if v.dir_split {
+        split_z(&r);
     }
     r.commit("main work");
     let ours = r.head();
@@ -903,6 +951,20 @@ fn squash_scenario(v: Squash) -> Landed {
     }
     if v.overlap {
         r.write("src.rs", "merged\n");
+    }
+    if v.hunks {
+        let m = if v.same_hunk {
+            manifest(Some("hand"), None)
+        } else if v.fixup {
+            manifest(Some("pr"), Some("3"))
+        } else {
+            manifest(Some("pr"), Some("2"))
+        };
+        r.write("Cargo.toml", &m);
+    }
+    if v.dir_split {
+        split_z(&r);
+        r.write("z/d", "d\n");
     }
     if v.extra_change {
         r.write("other.rs", "changed\n");
@@ -970,6 +1032,7 @@ fn a_squash_merged_pull_request_becomes_a_case_with_its_commits() {
     assert_eq!(case.meta.parents, parents);
     let text = fs::read_to_string(out.path().join("cargo/INDEX.toml")).unwrap();
     assert!(text.contains("plain_git = \"conflict\""));
+    assert_eq!(doc["squash_proof"].as_str(), Some("disjoint"));
 }
 
 #[test]
@@ -1015,6 +1078,69 @@ fn a_squash_commit_that_is_not_the_pull_request_is_skipped() {
 }
 
 #[test]
+fn a_manifest_both_sides_edited_in_different_hunks_is_proven_three_way() {
+    let (l, idx, out) = run_squash(Squash {
+        hunks: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "case:reachable");
+    let dir = case_dir(&out, &l.squash);
+    let doc: DocumentMut = fs::read_to_string(dir.join("case.toml"))
+        .unwrap()
+        .parse()
+        .unwrap();
+    assert_eq!(doc["squash_proof"].as_str(), Some("three-way"));
+    // The expected lockfile is the squash commit's own.
+    let expected = fs::read_to_string(dir.join("expected")).unwrap();
+    assert_eq!(expected, lock(&["p1", "p2", "m1", "pr1"]));
+}
+
+#[test]
+fn the_same_manifest_hunk_conflicting_is_still_unproven() {
+    let (l, idx, out) = run_squash(Squash {
+        hunks: true,
+        same_hunk: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn a_directory_rename_conflict_outside_the_lockfiles_is_unproven() {
+    // Git reports it only as a message, with no conflicted file entry.
+    let (l, idx, out) = run_squash(Squash {
+        hunks: true,
+        dir_split: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn a_hand_fixup_on_an_overlapping_path_is_unproven() {
+    let (l, idx, out) = run_squash(Squash {
+        hunks: true,
+        fixup: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
+fn an_extra_path_in_an_overlapping_squash_is_unproven() {
+    let (l, idx, out) = run_squash(Squash {
+        hunks: true,
+        extra_change: true,
+        ..Squash::default()
+    });
+    assert_eq!(idx[&l.squash], "skipped:squash-overlap-unproven");
+    assert!(!case_dir(&out, &l.squash).exists());
+}
+
+#[test]
 fn a_path_both_sides_changed_cannot_be_proven_and_is_skipped() {
     let (l, idx, _out) = run_squash(Squash {
         overlap: true,
@@ -1041,7 +1167,9 @@ fn survey_counts_squash_candidates_only_when_asked() {
     ensure_clone(&src, &repo).unwrap();
     let on = survey(&repo, &src, &CargoOracle).unwrap();
     assert!(
-        on.contains("1 candidates") && on.contains("plain git conflicts 1"),
+        on.contains("1 candidates")
+            && on.contains("plain git conflicts 1")
+            && on.contains("squash proofs disjoint 1, three-way 0"),
         "{on}"
     );
     src.squash_prs = false;

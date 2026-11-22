@@ -258,6 +258,9 @@ pub struct Candidate {
     /// `merge` is then the squash commit, `parents` are its parent and the
     /// pull request head.
     pub pull_request: Option<u64>,
+    /// How a squash commit was proven to be the pull request: `"disjoint"` or
+    /// `"three-way"` (docs/02-oracle.md section 3.1). `None` for merge commits.
+    pub squash_proof: Option<&'static str>,
 }
 
 #[derive(Clone, Debug)]
@@ -374,6 +377,7 @@ fn candidate(
         plain_git: plain,
         change_set,
         pull_request: None,
+        squash_proof: None,
     }))
 }
 
@@ -454,30 +458,135 @@ fn changed(repo: &Path, src: &Source, a: &str, b: &str) -> Result<BTreeSet<Strin
         .collect())
 }
 
+/// The tree of a three-way merge of `ours` and `head` from `base`, if git
+/// merges every path outside the lockfiles cleanly. Conflicts in the
+/// lockfiles are expected and ignored. `None` when any other path conflicts.
+fn merge_tree_outside_lockfiles(
+    repo: &Path,
+    src: &Source,
+    base: &str,
+    ours: &str,
+    head: &str,
+) -> Result<Option<String>, String> {
+    let args = [
+        "merge-tree",
+        "--write-tree",
+        "--name-only",
+        "-z",
+        "--merge-base",
+        base,
+        ours,
+        head,
+    ];
+    let mut cmd = git_plain(repo);
+    cmd.args(args);
+    let r = match run(cmd, GIT_TIMEOUT) {
+        Ok(r) => r,
+        Err(RunError::Timeout) => return Err("git merge-tree: timeout".into()),
+        Err(RunError::Spawn(e)) => return Err(format!("git merge-tree: {e}")),
+    };
+    // Exit 0 is a clean merge, 1 a merge with conflicts; anything else is an
+    // error. The output is the tree id, then (with -z, when conflicted) the
+    // conflicted paths, each ended by NUL.
+    if !r.ok() && r.code != Some(1) {
+        return Err(format!("git merge-tree: {}", r.stderr_text()));
+    }
+    read_merge_tree(src, r.code == Some(1), &r.stdout)
+}
+
+/// Reads the `-z` output of `git merge-tree` (see
+/// [`merge_tree_outside_lockfiles`]). `conflicted` is whether it exited 1. A
+/// conflicted merge is accepted only when a conflicted entry or a CONFLICT
+/// message names a lockfile: a conflict nothing explains is refused.
+fn read_merge_tree(
+    src: &Source,
+    conflicted: bool,
+    stdout: &[u8],
+) -> Result<Option<String>, String> {
+    let mut explained = false;
+    let mut fields = stdout.split(|b| *b == 0);
+    let tree = String::from_utf8_lossy(fields.next().unwrap_or_default())
+        .trim()
+        .to_string();
+    if tree.is_empty() {
+        return Err("git merge-tree: no tree in the output".into());
+    }
+    let is_lockfile = |p: &[u8]| {
+        src.lockfiles
+            .contains(&String::from_utf8_lossy(p).into_owned())
+    };
+    // Conflicted file entries, ended by an empty field.
+    for path in fields.by_ref().take_while(|p| !p.is_empty()) {
+        if !is_lockfile(path) {
+            return Ok(None);
+        }
+        explained = true;
+    }
+    // Then the messages: a path count, the paths, a type and the text. Some
+    // conflicts (a directory rename split) have no conflicted file entry and
+    // show only here, so every CONFLICT message must name only lockfiles. A
+    // message that cannot be read, or names no path, is refused.
+    let rest: Vec<&[u8]> = fields.collect();
+    let mut i = 0;
+    while i < rest.len() {
+        if rest[i].is_empty() && i + 1 == rest.len() {
+            break;
+        }
+        let count = std::str::from_utf8(rest[i])
+            .ok()
+            .and_then(|n| n.parse::<usize>().ok());
+        let Some(count) = count else { return Ok(None) };
+        let (paths, kind) = (rest.get(i + 1..i + 1 + count), rest.get(i + 1 + count));
+        let (Some(paths), Some(kind), Some(_text)) = (paths, kind, rest.get(i + 2 + count)) else {
+            return Ok(None);
+        };
+        if kind.starts_with(b"CONFLICT") && (count == 0 || !paths.iter().all(|p| is_lockfile(p))) {
+            return Ok(None);
+        }
+        explained |= kind.starts_with(b"CONFLICT") && count > 0;
+        i += count + 3;
+    }
+    if conflicted && !explained {
+        return Ok(None);
+    }
+    Ok(Some(tree))
+}
+
 /// Proves that the squash commit `squash` is the pull request applied to
 /// `ours` (its parent), apart from the lockfiles. With `pr` the paths the pull
 /// request changed from `base`, and `main` those the default branch changed
-/// from `base`: the pull request must not touch a path the default branch also
-/// changed (the squash result of such a path cannot be checked without
-/// guessing), the squash must change exactly the pull request's paths, and
-/// each of them must equal the pull request head.
+/// from `base`:
+///
+/// - If they are disjoint, the squash must change exactly the pull request's
+///   paths, and each of them must equal the pull request head (`"disjoint"`).
+/// - Otherwise git must merge `ours` and `head` from `base` cleanly outside the
+///   lockfiles, and that tree must equal the squash tree outside the lockfiles
+///   (`"three-way"`).
+///
+/// Returns the proof used, or the reason the squash is skipped.
 fn squash_proof(
     repo: &Path,
     src: &Source,
     c: &Candidate,
-) -> Result<Result<(), &'static str>, String> {
+) -> Result<Result<&'static str, &'static str>, String> {
     let (base, ours, head, squash) = (&c.base, &c.parents[0], &c.parents[1], &c.merge);
     let pr = changed(repo, src, base, head)?;
     let main = changed(repo, src, base, ours)?;
     if !pr.is_disjoint(&main) {
-        return Ok(Err("squash-overlap-unproven"));
+        let Some(tree) = merge_tree_outside_lockfiles(repo, src, base, ours, head)? else {
+            return Ok(Err("squash-overlap-unproven"));
+        };
+        if !changed(repo, src, &tree, squash)?.is_empty() {
+            return Ok(Err("squash-overlap-unproven"));
+        }
+        return Ok(Ok("three-way"));
     }
     let landed = changed(repo, src, ours, squash)?;
     let differs = changed(repo, src, squash, head)?;
     if landed != pr || !differs.is_disjoint(&pr) {
         return Ok(Err("squash-not-the-pull-request"));
     }
-    Ok(Ok(()))
+    Ok(Ok("disjoint"))
 }
 
 /// `Some(n)` for a subject that ends with GitHub's `(#n)`.
@@ -567,8 +676,7 @@ fn scan_squash(
             }
             continue;
         };
-        let mut proof: Option<&'static str> = None;
-        let mut proven = false;
+        let mut proof: Option<Result<&'static str, &'static str>> = None;
         for path in &src.lockfiles {
             if max_taken.is_some_and(|m| *taken >= m) {
                 return Ok(());
@@ -577,18 +685,20 @@ fn scan_squash(
             match candidate(repo, src, oracle, squash, &parents, path)? {
                 Err(why) => out.push(skip(squash, path, why)),
                 Ok(mut c) => {
-                    if !proven {
-                        proof = squash_proof(repo, src, &c)?.err();
-                        proven = true;
-                    }
-                    if let Some(why) = proof {
-                        out.push(Considered {
+                    let result = match proof {
+                        Some(r) => r,
+                        None => *proof.insert(squash_proof(repo, src, &c)?),
+                    };
+                    match result {
+                        Err(why) => out.push(Considered {
                             plain_git: Some(c.plain_git),
                             ..skip(squash, path, why)
-                        });
-                    } else {
-                        c.pull_request = Some(n);
-                        offer(out, taken, select, squash, path, Ok(c));
+                        }),
+                        Ok(used) => {
+                            c.pull_request = Some(n);
+                            c.squash_proof = Some(used);
+                            offer(out, taken, select, squash, path, Ok(c));
+                        }
                     }
                 }
             }
@@ -602,12 +712,18 @@ pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, 
     let all = scan(repo, src, oracle, None, &mut |_| Selection::Take)?;
     let (mut reachable, mut re_resolved, mut conflicts) = (0, 0, 0);
     let mut skips: std::collections::BTreeMap<String, usize> = Default::default();
+    let (mut disjoint, mut three_way) = (0, 0);
     for c in &all {
         match &c.outcome {
             Outcome::Case(b) => {
                 match b.kind {
                     Kind::Reachable => reachable += 1,
                     Kind::ReResolved => re_resolved += 1,
+                }
+                match b.squash_proof {
+                    Some("disjoint") => disjoint += 1,
+                    Some(_) => three_way += 1,
+                    None => {}
                 }
                 if b.plain_git == PlainGit::Conflict {
                     conflicts += 1;
@@ -622,6 +738,11 @@ pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, 
         all.len(),
         reachable + re_resolved
     );
+    if disjoint + three_way > 0 {
+        s.push_str(&format!(
+            "; squash proofs disjoint {disjoint}, three-way {three_way}"
+        ));
+    }
     for (why, n) in skips {
         s.push_str(&format!("; {why} {n}"));
     }
@@ -632,6 +753,55 @@ pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, 
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    fn lock_source() -> Source {
+        Source {
+            name: "t".into(),
+            url: String::new(),
+            ecosystem: "cargo".into(),
+            lockfiles: vec!["Cargo.lock".into()],
+            revision: String::new(),
+            max_cases: 1,
+            max_file_bytes: 1,
+            git_clean_percent: 25,
+            license: None,
+            squash_prs: true,
+        }
+    }
+
+    #[test]
+    fn a_conflict_that_names_a_lockfile_is_read_as_the_tree() {
+        let s = lock_source();
+        let entries = b"abc\0Cargo.lock\0\0";
+        assert_eq!(
+            read_merge_tree(&s, true, entries).unwrap(),
+            Some("abc".into())
+        );
+        let message = b"abc\0\x001\0Cargo.lock\0CONFLICT (content)\0m\0";
+        assert_eq!(
+            read_merge_tree(&s, true, message).unwrap(),
+            Some("abc".into())
+        );
+        // Clean merges need no evidence.
+        assert_eq!(
+            read_merge_tree(&s, false, b"abc\0").unwrap(),
+            Some("abc".into())
+        );
+    }
+
+    #[test]
+    fn a_conflict_nothing_explains_is_refused() {
+        let s = lock_source();
+        // Exit 1, a tree and an empty conflict section.
+        assert_eq!(read_merge_tree(&s, true, b"abc\0\0").unwrap(), None);
+        assert_eq!(read_merge_tree(&s, true, b"abc\0").unwrap(), None);
+        // Only an informational message.
+        let info = b"abc\0\x001\0Cargo.toml\0Auto-merging\0Auto-merging Cargo.toml\0";
+        assert_eq!(read_merge_tree(&s, true, info).unwrap(), None);
+        // A CONFLICT message with no path explains nothing.
+        let nopath = b"abc\0\x000\0CONFLICT (x)\0m\0";
+        assert_eq!(read_merge_tree(&s, true, nopath).unwrap(), None);
+    }
 
     #[test]
     fn a_relative_clone_path_is_cloned_where_it_is_looked_for() {
