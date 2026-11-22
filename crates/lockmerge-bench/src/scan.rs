@@ -38,6 +38,10 @@ pub struct Source {
     /// from `refs/pull/<n>/head` as cases (docs/02-oracle.md section 3.1).
     /// Default false.
     pub squash_prs: bool,
+    /// Opt-in (`pr_branch_merges = true`): also take merge commits from the
+    /// own history of merged pull requests as cases (docs/02-oracle.md section
+    /// 3.1, ADR 0021). Fetches `refs/pull/*` itself. Default false.
+    pub pr_branch_merges: bool,
 }
 
 fn slug(url: &str) -> String {
@@ -104,6 +108,15 @@ pub fn parse_sources(text: &str) -> Result<Vec<Source>, String> {
                 )
             })?,
         };
+        let pr_branch_merges = match t.get("pr_branch_merges") {
+            None => false,
+            Some(i) => i.as_bool().ok_or_else(|| {
+                format!(
+                    "sources.toml: source {} `pr_branch_merges` must be true or false",
+                    n + 1
+                )
+            })?,
+        };
         out.push(Source {
             name: s("name").unwrap_or_else(|| slug(&url)),
             ecosystem: s("ecosystem").ok_or_else(|| ctx("ecosystem"))?,
@@ -114,6 +127,7 @@ pub fn parse_sources(text: &str) -> Result<Vec<Source>, String> {
             git_clean_percent,
             license: s("license"),
             squash_prs,
+            pr_branch_merges,
             url,
         });
     }
@@ -175,7 +189,7 @@ pub fn ensure_clone(source: &Source, dir: &Path) -> Result<(), String> {
             ],
         )?;
     }
-    if source.squash_prs {
+    if source.squash_prs || source.pr_branch_merges {
         // The pull request heads are not part of a plain clone. The refspec
         // names them under the same refs/pull/ names. Owner side, network.
         git_out(
@@ -261,6 +275,9 @@ pub struct Candidate {
     /// How a squash commit was proven to be the pull request: `"disjoint"` or
     /// `"three-way"` (docs/02-oracle.md section 3.1). `None` for merge commits.
     pub squash_proof: Option<&'static str>,
+    /// A merge commit from the own history of the merged pull request
+    /// `pull_request` (ADR 0021), not a commit on the pinned revision's history.
+    pub pr_branch: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -378,6 +395,7 @@ fn candidate(
         change_set,
         pull_request: None,
         squash_proof: None,
+        pr_branch: false,
     }))
 }
 
@@ -413,6 +431,9 @@ pub fn scan(
     }
     if src.squash_prs && !full(taken) {
         scan_squash(repo, src, oracle, max_taken, &mut taken, select, &mut out)?;
+    }
+    if src.pr_branch_merges && !full(taken) {
+        scan_pr_branches(repo, src, oracle, max_taken, &mut taken, select, &mut out)?;
     }
     Ok(out)
 }
@@ -567,9 +588,8 @@ fn read_merge_tree(
 fn squash_proof(
     repo: &Path,
     src: &Source,
-    c: &Candidate,
+    (base, ours, head, squash): (&str, &str, &str, &str),
 ) -> Result<Result<&'static str, &'static str>, String> {
-    let (base, ours, head, squash) = (&c.base, &c.parents[0], &c.parents[1], &c.merge);
     let pr = changed(repo, src, base, head)?;
     let main = changed(repo, src, base, ours)?;
     if !pr.is_disjoint(&main) {
@@ -597,21 +617,8 @@ fn pull_number(subject: &str) -> Option<u64> {
     (n.to_string() == digits).then_some(n)
 }
 
-/// Squash-merged pull requests (docs/02-oracle.md section 3.1). The squash
-/// commit S of pull request n is a one-parent commit on the first-parent
-/// history of the pinned revision whose subject ends with `(#n)`, for a pull
-/// request whose head is in `refs/pull/<n>/head`. It must be the only such
-/// commit, and `squash_proof` must show that its tree is the pull request
-/// applied. Ours is S's parent, theirs the pull request head.
-fn scan_squash(
-    repo: &Path,
-    src: &Source,
-    oracle: &dyn Oracle,
-    max_taken: Option<usize>,
-    taken: &mut usize,
-    select: &mut dyn FnMut(&Candidate) -> Selection,
-    out: &mut Vec<Considered>,
-) -> Result<(), String> {
+/// The pull request heads in `refs/pull/<n>/head`, by number.
+fn pull_heads(repo: &Path) -> Result<std::collections::BTreeMap<u64, String>, String> {
     let mut heads: std::collections::BTreeMap<u64, String> = Default::default();
     let refs = text(git_out(
         repo,
@@ -635,6 +642,19 @@ fn scan_squash(
             heads.insert(n, sha.to_string());
         }
     }
+    Ok(heads)
+}
+
+type Named = std::collections::BTreeMap<u64, Vec<(String, String)>>;
+
+/// The one-parent commits on the first-parent history of the pinned revision
+/// whose subject ends with `(#n)` for a pull request `n` in `heads`: the
+/// numbers newest first, and for each number the `(commit, parent)` pairs.
+fn squash_log(
+    repo: &Path,
+    src: &Source,
+    heads: &std::collections::BTreeMap<u64, String>,
+) -> Result<(Vec<u64>, Named), String> {
     let log = text(git_out(
         repo,
         &[
@@ -667,6 +687,26 @@ fn scan_squash(
             .or_default()
             .push((sha.to_string(), parent.to_string()));
     }
+    Ok((order, named))
+}
+
+/// Squash-merged pull requests (docs/02-oracle.md section 3.1). The squash
+/// commit S of pull request n is a one-parent commit on the first-parent
+/// history of the pinned revision whose subject ends with `(#n)`, for a pull
+/// request whose head is in `refs/pull/<n>/head`. It must be the only such
+/// commit, and `squash_proof` must show that its tree is the pull request
+/// applied. Ours is S's parent, theirs the pull request head.
+fn scan_squash(
+    repo: &Path,
+    src: &Source,
+    oracle: &dyn Oracle,
+    max_taken: Option<usize>,
+    taken: &mut usize,
+    select: &mut dyn FnMut(&Candidate) -> Selection,
+    out: &mut Vec<Considered>,
+) -> Result<(), String> {
+    let heads = pull_heads(repo)?;
+    let (order, named) = squash_log(repo, src, &heads)?;
     for n in order {
         let head = &heads[&n];
         let squashes = &named[&n];
@@ -687,7 +727,11 @@ fn scan_squash(
                 Ok(mut c) => {
                     let result = match proof {
                         Some(r) => r,
-                        None => *proof.insert(squash_proof(repo, src, &c)?),
+                        None => *proof.insert(squash_proof(
+                            repo,
+                            src,
+                            (&c.base, &c.parents[0], &c.parents[1], &c.merge),
+                        )?),
                     };
                     match result {
                         Err(why) => out.push(Considered {
@@ -707,14 +751,142 @@ fn scan_squash(
     Ok(())
 }
 
+/// Whether the pull request with head `head` landed: its head is reachable
+/// from the pinned revision, or it is the only commit on the first-parent
+/// history that names it (`squashes`, as `(commit, parent)`) and
+/// `squash_proof` shows that commit is the pull request (either proof).
+fn pull_request_landed(
+    repo: &Path,
+    src: &Source,
+    head: &str,
+    squashes: &[(String, String)],
+) -> Result<bool, String> {
+    if git_try(repo, &["merge-base", "--is-ancestor", head, &src.revision])?.is_some() {
+        return Ok(true);
+    }
+    let [(squash, parent)] = squashes else {
+        return Ok(false);
+    };
+    let bases = text(git_try(repo, &["merge-base", "--all", parent, head])?.unwrap_or_default());
+    let bases: Vec<&str> = bases.lines().collect();
+    let [base] = bases.as_slice() else {
+        return Ok(false);
+    };
+    Ok(squash_proof(repo, src, (base, parent, head, squash))?.is_ok())
+}
+
+/// Merge commits in the own history of merged pull requests (ADR 0021). For
+/// each pull request head, the merge commits reachable from it and not from
+/// the pinned revision are candidates (ours and theirs are the parents in
+/// order). The pull request must have landed (`pull_request_landed`), and the
+/// head's lockfile must equal the merge's byte for byte, else
+/// `pr-merge-unsettled`. A merge in several pull requests is one case: a case
+/// from any of them wins over the skips of the others.
+fn scan_pr_branches(
+    repo: &Path,
+    src: &Source,
+    oracle: &dyn Oracle,
+    max_taken: Option<usize>,
+    taken: &mut usize,
+    select: &mut dyn FnMut(&Candidate) -> Selection,
+    out: &mut Vec<Considered>,
+) -> Result<(), String> {
+    let heads = pull_heads(repo)?;
+    let (_, named) = squash_log(repo, src, &heads)?;
+    // In order of first sight: (merge, path) -> the best result so far.
+    let mut keys: Vec<(String, String)> = Vec::new();
+    let mut results: std::collections::BTreeMap<(String, String), Result<Candidate, &'static str>> =
+        Default::default();
+    for (n, head) in &heads {
+        let listing = text(git_out(
+            repo,
+            &[
+                "rev-list",
+                "--merges",
+                "--parents",
+                head,
+                "--not",
+                &src.revision,
+            ],
+        )?);
+        if listing.is_empty() {
+            continue;
+        }
+        let landed = pull_request_landed(
+            repo,
+            src,
+            head,
+            named.get(n).map(Vec::as_slice).unwrap_or_default(),
+        )?;
+        for line in listing.lines() {
+            let mut parts = line.split_whitespace();
+            let Some(merge) = parts.next() else { continue };
+            let parents: Vec<&str> = parts.collect();
+            for path in &src.lockfiles {
+                let key = (merge.to_string(), path.clone());
+                if matches!(results.get(&key), Some(Ok(_))) {
+                    continue;
+                }
+                let result = if !landed {
+                    Err("pr-not-merged")
+                } else {
+                    match candidate(repo, src, oracle, merge, &parents, path)? {
+                        Err(why) => Err(why),
+                        Ok(mut c) => {
+                            let same = blob_of(repo, head, path)? == blob_of(repo, merge, path)?;
+                            if same {
+                                c.pull_request = Some(*n);
+                                c.pr_branch = true;
+                                Ok(c)
+                            } else {
+                                Err("pr-merge-unsettled")
+                            }
+                        }
+                    }
+                };
+                match results.entry(key) {
+                    std::collections::btree_map::Entry::Vacant(e) => {
+                        keys.push(e.key().clone());
+                        e.insert(result);
+                    }
+                    std::collections::btree_map::Entry::Occupied(mut e) => {
+                        if result.is_ok() {
+                            *e.get_mut() = result;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    for key in keys {
+        if max_taken.is_some_and(|m| *taken >= m) {
+            break;
+        }
+        let result = results.remove(&key).expect("every key has a result");
+        offer(out, taken, select, &key.0, &key.1, result);
+    }
+    Ok(())
+}
+
 /// `survey`: counts the candidates of one source without writing fixtures.
 pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, String> {
     let all = scan(repo, src, oracle, None, &mut |_| Selection::Take)?;
     let (mut reachable, mut re_resolved, mut conflicts) = (0, 0, 0);
     let mut skips: std::collections::BTreeMap<String, usize> = Default::default();
     let (mut disjoint, mut three_way) = (0, 0);
+    // The cases from pull request branches: reachable, re-resolved, conflicts.
+    let (mut br, mut bx, mut bc) = (0, 0, 0);
     for c in &all {
         match &c.outcome {
+            Outcome::Case(b) if b.pr_branch => {
+                match b.kind {
+                    Kind::Reachable => br += 1,
+                    Kind::ReResolved => bx += 1,
+                }
+                if b.plain_git == PlainGit::Conflict {
+                    bc += 1;
+                }
+            }
             Outcome::Case(b) => {
                 match b.kind {
                     Kind::Reachable => reachable += 1,
@@ -743,6 +915,12 @@ pub fn survey(repo: &Path, src: &Source, oracle: &dyn Oracle) -> Result<String, 
             "; squash proofs disjoint {disjoint}, three-way {three_way}"
         ));
     }
+    if src.pr_branch_merges {
+        s.push_str(&format!(
+            "; PR-branch merges {} (reachable {br}, re-resolved {bx}; plain git conflicts {bc})",
+            br + bx
+        ));
+    }
     for (why, n) in skips {
         s.push_str(&format!("; {why} {n}"));
     }
@@ -766,6 +944,7 @@ mod tests {
             git_clean_percent: 25,
             license: None,
             squash_prs: true,
+            pr_branch_merges: false,
         }
     }
 
@@ -832,6 +1011,7 @@ mod tests {
             git_clean_percent: 25,
             license: None,
             squash_prs: false,
+            pr_branch_merges: false,
         };
         // Relative to the process directory, as the default `bench-cache/`.
         let cwd = std::env::current_dir().unwrap();

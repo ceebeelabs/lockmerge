@@ -67,6 +67,15 @@ fn eco_section(out: &mut String, e: &EcoReport, formats: &[&dyn Format]) {
         pct(m.reachable_rate()),
         m.reachable_lower_bound() * 100.0
     );
+    if m.pb_n > 0 {
+        // Their own group, so the rate can be read apart from the headline
+        // (ADR 0021); they are also counted in the headline above.
+        let _ = writeln!(
+            out,
+            "  PR-branch merges (ADR 0021): {} cases, reachable {}; reachable resolution rate {}/{}",
+            m.pb_n, m.pb_reachable, m.pb_s_r, m.pb_c_r
+        );
+    }
     let _ = writeln!(
         out,
         "  Rate over all git conflicts: {}/{} = {}",
@@ -276,6 +285,7 @@ mod tests {
                 merged: None,
             }),
             waived: false,
+            pr_branch: false,
         };
         let results = vec![
             result("a", "toy.R14", "x [detail: no manifest]"),

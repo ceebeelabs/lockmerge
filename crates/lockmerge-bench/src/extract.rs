@@ -353,6 +353,11 @@ fn case_toml(
     ));
     s.push_str(&format!("base_commit = {}\n", q(&c.base)));
     s.push_str(&format!("lockfile_path = {}\n", q(&c.path)));
+    if c.pr_branch {
+        // A merge commit from the own history of a merged pull request (ADR
+        // 0021): `merge_commit` is that merge, `parents` its parents in order.
+        s.push_str("origin = \"pr-branch\"\n");
+    }
     if let Some(n) = c.pull_request {
         // A squash-merged pull request: `merge_commit` is the squash commit,
         // `parents` its parent (ours) and the pull request head (theirs).

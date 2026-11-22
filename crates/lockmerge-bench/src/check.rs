@@ -310,6 +310,7 @@ fn run_case(
         exact: false,
         attribution: None,
         waived: false,
+        pr_branch: case.meta.pr_branch,
     };
     let replayed = match replay(case, opts) {
         Ok(r) => r,
@@ -347,6 +348,7 @@ fn run_case(
         exact,
         attribution,
         waived: case.meta.waiver.is_some(),
+        pr_branch: case.meta.pr_branch,
     }
 }
 

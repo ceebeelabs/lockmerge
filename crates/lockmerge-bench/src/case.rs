@@ -71,6 +71,9 @@ pub struct Meta {
     pub kind: Kind,
     pub foreign_count: Option<i64>,
     pub waiver: Option<Waiver>,
+    /// `origin = "pr-branch"`: a merge commit from a pull request's own
+    /// history (ADR 0021).
+    pub pr_branch: bool,
 }
 
 pub struct Case {
@@ -171,6 +174,7 @@ fn parse_meta(doc: &DocumentMut) -> Result<Meta, String> {
         kind,
         foreign_count: doc.get("foreign_ids_count").and_then(|i| i.as_integer()),
         waiver,
+        pr_branch: text(doc, "origin").as_deref() == Some("pr-branch"),
     })
 }
 
